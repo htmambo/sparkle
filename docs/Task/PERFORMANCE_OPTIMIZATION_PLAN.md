@@ -238,6 +238,50 @@
 
 ---
 
+## Phase 1 完成记录
+
+**完成时间**：2026-01-11
+**Git Commit**：0ecab19
+
+### 已完成任务
+
+✅ **任务 1.1：CI 依赖缓存**
+- 添加 `actions/setup-node@v4`，启用 pnpm 缓存
+- 使用 `corepack` 固定 pnpm@10.15.0 版本
+- 添加 Electron 跨平台缓存
+- 验收：通过 Codex 审核确认
+
+✅ **任务 1.2：路由懒加载**
+- 14 个页面组件全部使用 `React.lazy()` 动态导入
+- 使用 HeroUI `Spinner` 作为 Suspense fallback
+- 修正类型导入：`JSX.Element`
+- 验收：通过 Codex 审核确认
+
+✅ **任务 1.3：SWR 重试优化**
+- 监听 `core-started` 事件，启动前禁用 SWR 重试
+- 合并监听器，使用 `removeListener` 避免误删
+- 验收：通过 Codex 审核确认
+
+### 修复问题
+
+根据 Codex 审核反馈，修复了以下问题：
+1. 路由懒加载：Loading 组件不存在 → 改用 Spinner
+2. SWR 优化：removeAllListeners 潜在问题 → 改用 removeListener
+3. CI 缓存：
+   - package-lock.json 不存在 → 改用 pnpm-lock.yaml
+   - pnpm 版本不一致 → 添加 corepack 步骤
+   - Windows 缓存路径 → 移除不兼容路径
+
+### 下一步
+
+Phase 2（中期优化）待实施：
+- 任务 2.1：CI 矩阵收敛
+- 任务 2.2：Logs 页优化
+- 任务 2.3：Connections 页优化
+- 任务 2.4：WS 重连退避
+
+---
+
 ## 总结
 
 本计划包含 9 个主要优化任务，分为 3 个阶段实施。预期最终收益：
@@ -247,3 +291,5 @@
 - 渲染性能 ↑ 50%
 
 所有任务完成后，Sparkle 将在性能和用户体验上有显著提升。
+
+**当前进度**：Phase 1 已完成 ✅（3/9 任务完成）
