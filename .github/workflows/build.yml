@@ -246,6 +246,7 @@ jobs:
           rm -rf workdir
 
       - name: Create Changelog
+        shell: bash
         run: |
           RELEASE_NOTES="${{ github.event.inputs.release_notes }}"
           echo "${RELEASE_NOTES:-更新}" > changelog.md
@@ -274,6 +275,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Create Changelog
+        shell: bash
         run: |
           RELEASE_NOTES="${{ github.event.inputs.release_notes }}"
           echo "${RELEASE_NOTES:-更新}" > changelog.md
@@ -328,6 +330,7 @@ jobs:
           echo "tag=$TAG_NAME" >> $GITHUB_OUTPUT
 
       - name: Create Changelog
+        shell: bash
         run: |
           RELEASE_NOTES="${{ github.event.inputs.release_notes }}"
           echo "${RELEASE_NOTES:-更新}" > changelog.md
