@@ -127,16 +127,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node.js and pnpm
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.0
+
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'pnpm'
-
-      - name: Setup pnpm version
-        run: |
-          corepack enable
-          corepack prepare pnpm@10.15.0 --activate
 
       - name: Cache Electron
         uses: actions/cache@v4
@@ -321,15 +321,15 @@ jobs:
           echo "${RELEASE_NOTES:-更新}" > changelog.md
 
       - name: Install Dependencies and Updater
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.0
+
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'pnpm'
-
-      - name: Setup pnpm version
-        run: |
-          corepack enable
-          corepack prepare pnpm@10.15.0 --activate
 
       - name: Updater
         run: |
