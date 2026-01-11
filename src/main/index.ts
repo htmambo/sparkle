@@ -584,6 +584,10 @@ export async function createWindow(appConfig?: AppConfig): Promise<void> {
         windowShown = true
         mainWindow?.show()
         mainWindow?.focusOnWebView()
+        // 开发模式下自动打开开发者工具（用于调试）
+        if (is.dev) {
+          mainWindow.webContents.openDevTools()
+        }
       } else {
         await scheduleLightweightMode()
       }

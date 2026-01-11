@@ -21,7 +21,9 @@ export default defineConfig({
     plugins: [externalizeDepsPlugin()]
   },
   preload: {
-    plugins: [externalizeDepsPlugin()]
+    // 注意：不在 preload 中使用 externalizeDepsPlugin
+    // 这样依赖会被打包进 preload 脚本，支持 sandbox 模式
+    plugins: []
   },
   renderer: {
     build: {
