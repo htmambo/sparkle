@@ -1,6 +1,7 @@
 import BasePage from '@renderer/components/base/base-page'
 import LogItem from '@renderer/components/logs/log-item'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { startMihomoLogs, stopMihomoLogs } from '@renderer/utils/ipc'
 import { Button, Divider, Input } from '@heroui/react'
 import { Virtuoso, VirtuosoHandle } from 'react-virtuoso'
 import { IoLocationSharp } from 'react-icons/io5'
@@ -8,6 +9,7 @@ import { CgTrash } from 'react-icons/cg'
 
 import { includesIgnoreCase } from '@renderer/utils/includes'
 
+// 日志缓存，跨组件实例共享
 const cachedLogs: {
   log: ControllerLog[]
   trigger: ((i: ControllerLog[]) => void) | null
@@ -23,16 +25,30 @@ const cachedLogs: {
   }
 }
 
-window.electron.ipcRenderer.on('mihomoLogs', (_e, log: ControllerLog) => {
-  log.time = new Date().toLocaleString()
-  cachedLogs.log.push(log)
-  if (cachedLogs.log.length >= 500) {
-    cachedLogs.log.shift()
+// 全局日志监听器，确保即使组件未挂载也缓存日志
+const logBuffer: ControllerLog[] = []
+let logFlushTimer: ReturnType<typeof setTimeout> | null = null
+
+const flushLogs = (): void => {
+  if (logBuffer.length === 0) return
+
+  // 批量添加到缓存
+  for (const log of logBuffer) {
+    log.time = new Date().toLocaleString()
+    cachedLogs.log.push(log)
+    if (cachedLogs.log.length >= 500) {
+      cachedLogs.log.shift()
+    }
   }
+
+  // 清空 buffer
+  logBuffer.length = 0
+
+  // 触发 UI 更新
   if (cachedLogs.trigger !== null) {
     cachedLogs.trigger(cachedLogs.log)
   }
-})
+}
 
 const Logs: React.FC = () => {
   const [logs, setLogs] = useState<ControllerLog[]>(cachedLogs.log)
@@ -47,6 +63,30 @@ const Logs: React.FC = () => {
     })
   }, [logs, filter])
 
+  // WebSocket 订阅管理
+  useEffect(() => {
+    startMihomoLogs()
+
+    const handleLogs = (_e: unknown, log: ControllerLog): void => {
+      logBuffer.push(log)
+
+      // 节流：每 100ms 批量更新一次
+      if (logFlushTimer === null) {
+        logFlushTimer = setTimeout(() => {
+          flushLogs()
+          logFlushTimer = null
+        }, 100)
+      }
+    }
+
+    window.electron.ipcRenderer.on('mihomoLogs', handleLogs)
+
+    return () => {
+      window.electron.ipcRenderer.removeListener('mihomoLogs', handleLogs)
+      stopMihomoLogs()
+    }
+  }, [])
+
   useEffect(() => {
     if (!trace) return
     virtuosoRef.current?.scrollToIndex({
@@ -58,11 +98,14 @@ const Logs: React.FC = () => {
   }, [filteredLogs, trace])
 
   useEffect(() => {
+    // 注册 trigger 函数
     const old = cachedLogs.trigger
     cachedLogs.trigger = (a): void => {
       setLogs([...a])
     }
+
     return (): void => {
+      // 组件卸载时取消注册
       cachedLogs.trigger = old
     }
   }, [])

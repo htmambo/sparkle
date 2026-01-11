@@ -1,11 +1,24 @@
 name: Build
 permissions: write-all
-on:
+'on':
   workflow_dispatch:
     inputs:
-      version:
-        description: 'Tag version to release'
+      platform:
+        description: '选择要打包的平台'
+        required: true
+        type: choice
+        options:
+          - 全部平台
+          - 仅 Windows
+          - 仅 Linux
+          - 仅 macOS
+          - Windows + macOS
+          - Windows + Linux
+          - macOS + Linux
+      release_notes:
+        description: '发布说明（可选）'
         required: false
+        default: '更新'
   push:
     branches:
       - master
@@ -17,86 +30,146 @@ on:
       - '.github/workflows/issues.yml'
 
 jobs:
+  set-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - name: Set Matrix
+        id: set-matrix
+        run: |
+          # 确定平台选择
+          PLATFORM="${{ github.event.inputs.platform }}"
+
+          # 如果是 push 或 tag 触发，默认构建全部平台
+          if [ -z "$PLATFORM" ]; then
+            PLATFORM="全部平台"
+          fi
+
+          case "$PLATFORM" in
+            "全部平台")
+              MATRIX='[
+                {"os":"windows-latest","arch":"x64"},
+                {"os":"windows-latest","arch":"arm64"},
+                {"os":"ubuntu-latest","arch":"x64"},
+                {"os":"ubuntu-latest","arch":"arm64"},
+                {"os":"ubuntu-latest","arch":"loong64"},
+                {"os":"macos-latest","arch":"x64"},
+                {"os":"macos-latest","arch":"arm64"}
+              ]'
+              ;;
+            "仅 Windows")
+              MATRIX='[
+                {"os":"windows-latest","arch":"x64"},
+                {"os":"windows-latest","arch":"arm64"}
+              ]'
+              ;;
+            "仅 Linux")
+              MATRIX='[
+                {"os":"ubuntu-latest","arch":"x64"},
+                {"os":"ubuntu-latest","arch":"arm64"},
+                {"os":"ubuntu-latest","arch":"loong64"}
+              ]'
+              ;;
+            "仅 macOS")
+              MATRIX='[
+                {"os":"macos-latest","arch":"x64"},
+                {"os":"macos-latest","arch":"arm64"}
+              ]'
+              ;;
+            "Windows + macOS")
+              MATRIX='[
+                {"os":"windows-latest","arch":"x64"},
+                {"os":"windows-latest","arch":"arm64"},
+                {"os":"macos-latest","arch":"x64"},
+                {"os":"macos-latest","arch":"arm64"}
+              ]'
+              ;;
+            "Windows + Linux")
+              MATRIX='[
+                {"os":"windows-latest","arch":"x64"},
+                {"os":"windows-latest","arch":"arm64"},
+                {"os":"ubuntu-latest","arch":"x64"},
+                {"os":"ubuntu-latest","arch":"arm64"},
+                {"os":"ubuntu-latest","arch":"loong64"}
+              ]'
+              ;;
+            "macOS + Linux")
+              MATRIX='[
+                {"os":"ubuntu-latest","arch":"x64"},
+                {"os":"ubuntu-latest","arch":"arm64"},
+                {"os":"ubuntu-latest","arch":"loong64"},
+                {"os":"macos-latest","arch":"x64"},
+                {"os":"macos-latest","arch":"arm64"}
+              ]'
+              ;;
+            *)
+              MATRIX='[]'
+              ;;
+          esac
+
+          # 使用 heredoc 方式输出，避免多行 JSON 破坏 GITHUB_OUTPUT 格式
+          {
+            echo 'matrix<<EOF'
+            echo "$MATRIX"
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+
   build:
+    needs: set-matrix
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        include:
-          - os: windows-latest
-            arch: x64
-            format: 7z
-          - os: windows-latest
-            arch: x64
-            format: nsis
-          - os: windows-latest
-            arch: arm64
-            format: 7z
-          - os: windows-latest
-            arch: arm64
-            format: nsis
-
-          - os: ubuntu-latest
-            arch: x64
-            format: deb
-          - os: ubuntu-latest
-            arch: x64
-            format: rpm
-          - os: ubuntu-latest
-            arch: x64
-            format: pacman
-          - os: ubuntu-latest
-            arch: arm64
-            format: deb
-          - os: ubuntu-latest
-            arch: arm64
-            format: rpm
-          - os: ubuntu-latest
-            arch: arm64
-            format: pacman
-          - os: ubuntu-latest
-            arch: loong64
-            format: deb
-          - os: ubuntu-latest
-            arch: loong64
-            format: rpm
-          - os: ubuntu-latest
-            arch: loong64
-            format: pacman
-
-          - os: macos-latest
-            arch: x64
-          - os: macos-latest
-            arch: arm64
-
-    name: Build ${{ matrix.os }}-${{ matrix.arch }}${{ matrix.format && '-' || '' }}${{ matrix.format || '' }}
+        include: ${{ fromJson(needs.set-matrix.outputs.matrix) }}
+    name: Build ${{ matrix.os }}-${{ matrix.arch }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Setup pnpm
-        run: npm install -g pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Cache Electron
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.electron
+            ~/.cache/electron
+            ~/Library/Caches/electron
+          key: ${{ runner.os }}-electron-${{ matrix.arch }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-electron-${{ matrix.arch }}-
+            ${{ runner.os }}-electron-
+
+      - name: Cache Prepared Files
+        uses: actions/cache@v4
+        with:
+          path: |
+            node_modules/.temp
+            extra/sidecar
+            extra/files
+          key: ${{ runner.os }}-prepared-${{ matrix.arch }}-${{ hashFiles('scripts/prepare.mjs') }}
+          restore-keys: |
+            ${{ runner.os }}-prepared-${{ matrix.arch }}-
+            ${{ runner.os }}-prepared-
 
       - name: Determine and Update Version
         shell: bash
         run: |
           GIT_COMMIT_HASH=$(git rev-parse --short HEAD)
           VERSION=$(jq -r '.version' package.json)
-
-          if [ "${{ github.event.inputs.version }}" == "" ]; then
-            BASE_VERSION=$(echo $VERSION | awk -F. '{print $1"."$2"."$3+1}')
-            VERSION_PREFIX=${VERSION_PREFIX:-beta}
-            RELEASE_VERSION="${BASE_VERSION}-${VERSION_PREFIX}-${GIT_COMMIT_HASH}"
-          else
-            INPUT_VERSION="${{ github.event.inputs.version }}"
-            CLEAN_VERSION=$(echo "$INPUT_VERSION" | sed 's/^v//')
-            if [[ ! "$CLEAN_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-              echo "Invalid version format: $INPUT_VERSION"
-              exit 1
-            fi
-            RELEASE_VERSION="$CLEAN_VERSION"
-          fi
-
+          BASE_VERSION=$(echo $VERSION | awk -F. '{print $1"."$2"."$3+1}')
+          VERSION_PREFIX=${VERSION_PREFIX:-beta}
+          RELEASE_VERSION="${BASE_VERSION}-${VERSION_PREFIX}-${GIT_COMMIT_HASH}"
           jq --arg version "$RELEASE_VERSION" '.version = $version' package.json > tmp.json && mv tmp.json package.json
 
       - name: Keep product name lowercase on Linux
@@ -105,7 +178,7 @@ jobs:
           sed -i "s/productName: Sparkle/productName: sparkle/" electron-builder.yml
 
       - name: Install Build Tools
-        if: matrix.os == 'ubuntu-latest' && matrix.format == 'pacman'
+        if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt-get update && sudo apt-get install -y libarchive-tools fakeroot
 
@@ -138,21 +211,21 @@ jobs:
         shell: bash
         run: |
           if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-            pnpm build:win ${{ matrix.format }} --${{ matrix.arch }}
+            pnpm build:win --${{ matrix.arch }}
           elif [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
             if [[ "${{ matrix.arch }}" == "loong64" ]]; then
               export ELECTRON_MIRROR="https://github.com/darkyzhou/electron-loong64/releases/download/"
               export electron_use_remote_checksums=1
-              pnpm build:linux ${{ matrix.format }} --${{ matrix.arch }}
+              pnpm build:linux --${{ matrix.arch }}
             else
-              pnpm build:linux ${{ matrix.format }} --${{ matrix.arch }}
+              pnpm build:linux --${{ matrix.arch }}
             fi
           else
             pnpm build:mac --${{ matrix.arch }}
           fi
 
       - name: Add Portable Flag
-        if: matrix.os == 'windows-latest' && matrix.format == '7z'
+        if: matrix.os == 'windows-latest'
         shell: pwsh
         run: |
           New-Item -Path "PORTABLE" -ItemType File
@@ -161,7 +234,7 @@ jobs:
           }
 
       - name: Magic build for AOSC OS(loongarch64)
-        if: matrix.os == 'ubuntu-latest' && matrix.format == 'deb' && matrix.arch == 'loong64'
+        if: matrix.os == 'ubuntu-latest' && matrix.arch == 'loong64'
         shell: bash
         run: |
           set -e
@@ -173,10 +246,9 @@ jobs:
           rm -rf workdir
 
       - name: Create Changelog
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          git log -1 --pretty=format:"%s%n%b" > changelog.md
+          RELEASE_NOTES="${{ github.event.inputs.release_notes }}"
+          echo "${RELEASE_NOTES:-更新}" > changelog.md
 
       - name: Generate latest.yml
         shell: bash
@@ -185,7 +257,7 @@ jobs:
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.os }}-${{ matrix.arch }}${{ matrix.format && '-' || '' }}${{ matrix.format || '' }}
+          name: ${{ matrix.os }}-${{ matrix.arch }}
           path: |
             dist/sparkle*
             !dist/sparkle.app.plist
@@ -194,11 +266,17 @@ jobs:
             changelog.md
 
   pre-release:
-    needs: [build]
+    if: github.event_name == 'workflow_dispatch'
+    needs: [set-matrix, build]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Create Changelog
+        run: |
+          RELEASE_NOTES="${{ github.event.inputs.release_notes }}"
+          echo "${RELEASE_NOTES:-更新}" > changelog.md
 
       - name: Download Artifacts
         uses: actions/download-artifact@v4
@@ -225,15 +303,15 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: pre-release
-          body_path: bin/changelog.md
+          body_path: changelog.md
           files: |
             bin/latest.yml
             bin/dist/*
           prerelease: true
 
   release:
-    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && github.event.inputs.version != '')
-    needs: [build]
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [set-matrix, build]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -242,57 +320,31 @@ jobs:
           fetch-depth: '0'
           fetch-tags: 'true'
 
-      - name: Generate Changelog
-        env:
-          API_URL: ${{ secrets.API_URL }}
-          API_KEY: ${{ secrets.API_KEY }}
+      - name: Extract Tag Name
+        id: tag
         run: |
-          TEXT=$(git log $(jq -r .version package.json)..HEAD --pretty=format:%s | grep -v '[0-9]\+\.[0-9]\+\.[0-9]\+$' | sed ':a;N;$!ba;s/\n/\\n/g')
-          QUESTION="Translate into Chinese:\n"""\n$TEXT\n""""
-          PAYLOAD=$(cat <<EOF
-          {
-            "stream": false,
-            "model": "gpt-5-mini",
-            "messages": [
-              {
-                "role": "system",
-                "content": "You are a professional translation engine, please translate the text into a colloquial, professional, elegant and fluent content, without the style of machine translation. You must only translate the text content, never interpret it."
-              },
-              {
-                "role": "user",
-                "content": "$QUESTION"
-              }
-            ]
-          }
-          EOF
-          )
-          RESPONSE=$(curl -s -X POST "$API_URL/v1/chat/completions" \
-            -H "Authorization: Bearer $API_KEY" \
-            -H "Content-Type: application/json" \
-            -d "$PAYLOAD" \
-            --max-time 30)
-          echo '# 更新日志' > changelog.md
-          echo $RESPONSE | jq .choices[0].message.content -r | sed 's/\\n/\n/g' | sed 's/^/ - /g' >> changelog.md
+          # 从 github.ref (refs/tags/v1.2.3) 提取 tag 名称 (v1.2.3)
+          TAG_NAME="${GITHUB_REF#refs/tags/}"
+          echo "tag=$TAG_NAME" >> $GITHUB_OUTPUT
 
-      - name: Update Version
+      - name: Create Changelog
         run: |
-          INPUT_VERSION="${{ github.event.inputs.version }}"
-          CLEAN_VERSION=$(echo "$INPUT_VERSION" | sed 's/^v//')
-          if [[ ! "$CLEAN_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "Invalid version format: $INPUT_VERSION"
-            exit 1
-          fi
-          jq --arg version "$CLEAN_VERSION" '.version = $version' package.json > tmp.json && mv tmp.json package.json
-
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git config --global user.name "github-actions[bot]"
-          git add package.json
-          git commit -m "update version to $CLEAN_VERSION"
-          git push
+          RELEASE_NOTES="${{ github.event.inputs.release_notes }}"
+          echo "${RELEASE_NOTES:-更新}" > changelog.md
 
       - name: Install Dependencies and Updater
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Updater
         run: |
-          npm install -g pnpm
           SKIP_PREPARE=1 pnpm install
           pnpm updater
 
@@ -305,14 +357,14 @@ jobs:
         uses: 8Mi-Tech/delete-release-assets-action@main
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          tag: ${{ github.event.inputs.version != '' && github.event.inputs.version || github.ref }}
+          tag: ${{ steps.tag.outputs.tag }}
           deleteOnlyFromDrafts: false
 
       - name: Publish Release
         if: success()
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.event.inputs.version != '' && github.event.inputs.version || github.ref }}
+          tag_name: ${{ steps.tag.outputs.tag }}
           body_path: changelog.md
           files: |
             latest.yml

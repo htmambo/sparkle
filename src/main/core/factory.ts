@@ -325,6 +325,7 @@ async function overrideProfile(
   return profile
 }
 
+// 在隔离沙箱内执行覆写脚本，禁用 require/process 避免逃逸
 async function runOverrideScript(
   profile: MihomoConfig,
   script: string,
@@ -340,31 +341,57 @@ async function runOverrideScript(
     const b64d = (str: string): string => Buffer.from(str, 'base64').toString('utf-8')
     const b64e = (data: Buffer | string): string =>
       (Buffer.isBuffer(data) ? data : Buffer.from(String(data))).toString('base64')
-    const ctx = {
-      console: Object.freeze({
-        log: (...args: unknown[]) => log('log', args.map(format).join(' ')),
-        info: (...args: unknown[]) => log('info', args.map(format).join(' ')),
-        error: (...args: unknown[]) => log('error', args.map(format).join(' ')),
-        debug: (...args: unknown[]) => log('debug', args.map(format).join(' '))
-      }),
-      fetch,
-      yaml: { parse: parseYaml, stringify: stringifyYaml },
-      b64d,
-      b64e,
-      Buffer
-    }
-    vm.createContext(ctx)
+
+    // 创建受限沙箱，禁用危险对象
+    const sandbox = vm.createContext(
+      {
+        console: Object.freeze({
+          log: (...args: unknown[]) => log('log', args.map(format).join(' ')),
+          info: (...args: unknown[]) => log('info', args.map(format).join(' ')),
+          error: (...args: unknown[]) => log('error', args.map(format).join(' ')),
+          debug: (...args: unknown[]) => log('debug', args.map(format).join(' '))
+        }),
+        fetch,
+        yaml: Object.freeze({ parse: parseYaml, stringify: stringifyYaml }),
+        b64d,
+        b64e,
+        Buffer: Object.freeze({ from: Buffer.from, alloc: Buffer.alloc }),
+        require: undefined, // 禁用 require
+        process: undefined, // 禁用 process
+        global: undefined // 禁用 global
+      },
+      {
+        name: `override-${item.id}`,
+        codeGeneration: { strings: false, wasm: false } // 禁用动态代码生成
+      }
+    )
+
     log('info', '开始执行脚本', 'w')
-    vm.runInContext(script, ctx)
-    const promise = vm.runInContext(
+
+    // 强制清除危险全局对象
+    new vm.Script('globalThis.require = undefined; globalThis.process = undefined;').runInContext(sandbox, {
+      timeout: 200
+    })
+
+    // 加载用户脚本
+    const setupScript = new vm.Script(script, {
+      filename: `${item.id}.js`
+    })
+    setupScript.runInContext(sandbox, { timeout: 1000 }) // 脚本初始化超时 1 秒
+
+    // 执行主逻辑
+    const runner = new vm.Script(
       `(async () => {
-        const result = main(${JSON.stringify(profile)})
+        const result = await main(${JSON.stringify(profile)})
         if (result instanceof Promise) return await result
         return result
       })()`,
-      ctx
+      {
+        filename: `${item.id}-runner.js`
+      }
     )
-    const newProfile = await promise
+    const newProfile = await runner.runInContext(sandbox, { timeout: 3000 }) // 执行超时 3 秒
+
     if (typeof newProfile !== 'object') {
       throw new Error('脚本返回值必须是对象')
     }

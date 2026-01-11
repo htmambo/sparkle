@@ -219,6 +219,38 @@ export async function restartMihomoConnections(): Promise<void> {
   return ipcErrorWrapper(await window.electron.ipcRenderer.invoke('restartMihomoConnections'))
 }
 
+export async function startMihomoTraffic(): Promise<void> {
+  return ipcErrorWrapper(await window.electron.ipcRenderer.invoke('startMihomoTraffic'))
+}
+
+export async function stopMihomoTraffic(): Promise<void> {
+  return ipcErrorWrapper(await window.electron.ipcRenderer.invoke('stopMihomoTraffic'))
+}
+
+export async function startMihomoMemory(): Promise<void> {
+  return ipcErrorWrapper(await window.electron.ipcRenderer.invoke('startMihomoMemory'))
+}
+
+export async function stopMihomoMemory(): Promise<void> {
+  return ipcErrorWrapper(await window.electron.ipcRenderer.invoke('stopMihomoMemory'))
+}
+
+export async function startMihomoLogs(): Promise<void> {
+  return ipcErrorWrapper(await window.electron.ipcRenderer.invoke('startMihomoLogs'))
+}
+
+export async function stopMihomoLogs(): Promise<void> {
+  return ipcErrorWrapper(await window.electron.ipcRenderer.invoke('stopMihomoLogs'))
+}
+
+export async function startMihomoConnections(): Promise<void> {
+  return ipcErrorWrapper(await window.electron.ipcRenderer.invoke('startMihomoConnections'))
+}
+
+export async function stopMihomoConnections(): Promise<void> {
+  return ipcErrorWrapper(await window.electron.ipcRenderer.invoke('stopMihomoConnections'))
+}
+
 export async function startMonitor(): Promise<void> {
   return ipcErrorWrapper(await window.electron.ipcRenderer.invoke('startMonitor'))
 }

@@ -17,8 +17,6 @@ if (process.contextIsolated) {
     console.error(error)
   }
 } else {
-  // @ts-ignore (define in dts)
-  window.electron = electronAPI
-  // @ts-ignore (define in dts)
-  window.api = api
+  // contextIsolation 关闭时不暴露全局对象，避免被任意脚本劫持
+  console.warn('contextIsolation 已关闭，出于安全原因未注入 Electron API')
 }

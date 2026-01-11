@@ -8,3 +8,11 @@ out
 *.log*
 .idea
 *.ttf
+.ace-tool/
+.vscode/
+.env
+.claude/
+
+# 打包生成的文件
+changelog.md
+latest.yml

@@ -258,9 +258,9 @@ export async function startCore(detached = false): Promise<Promise<void>[]> {
             })
           })
         ])
+        // Traffic 和 Memory 是应用级 WebSocket，由系统组件（tray、floating window）使用
+        // Logs 和 Connections 是页面级 WebSocket，由页面按需订阅
         await startMihomoTraffic()
-        await startMihomoConnections()
-        await startMihomoLogs()
         await startMihomoMemory()
         retry = 10
       }

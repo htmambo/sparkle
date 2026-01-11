@@ -19,7 +19,15 @@ import {
   mihomoVersion,
   mihomoConfig,
   patchMihomoConfig,
-  restartMihomoConnections
+  restartMihomoConnections,
+  startMihomoTraffic,
+  stopMihomoTraffic,
+  startMihomoMemory,
+  stopMihomoMemory,
+  startMihomoLogs,
+  stopMihomoLogs,
+  startMihomoConnections,
+  stopMihomoConnections
 } from '../core/mihomoApi'
 import { checkAutoRun, disableAutoRun, enableAutoRun } from '../sys/autoRun'
 import {
@@ -149,6 +157,20 @@ function ipcErrorWrapper<T>( // eslint-disable-next-line @typescript-eslint/no-e
     }
   }
 }
+
+/**
+ * 注册 renderer 可用的 IPC 调用入口
+ *
+ * @description
+ * 此函数注册所有从 renderer 进程调用的 IPC handlers。
+ * 每个 handler 都通过 `ipcErrorWrapper` 包装，确保错误被结构化返回。
+ *
+ * @example
+ * // Renderer 中调用：
+ * const result = await window.electron.ipcRenderer.invoke('getAppConfig')
+ *
+ * @see {@link ipcErrorWrapper} - 错误包装器实现
+ */
 export function registerIpcMainHandlers(): void {
   ipcMain.handle('mihomoVersion', ipcErrorWrapper(mihomoVersion))
   ipcMain.handle('mihomoConfig', ipcErrorWrapper(mihomoConfig))
@@ -214,6 +236,14 @@ export function registerIpcMainHandlers(): void {
   ipcMain.handle('setOverride', (_e, id, ext, str) => ipcErrorWrapper(setOverride)(id, ext, str))
   ipcMain.handle('restartCore', ipcErrorWrapper(restartCore))
   ipcMain.handle('restartMihomoConnections', ipcErrorWrapper(restartMihomoConnections))
+  ipcMain.handle('startMihomoTraffic', ipcErrorWrapper(startMihomoTraffic))
+  ipcMain.handle('stopMihomoTraffic', ipcErrorWrapper(stopMihomoTraffic))
+  ipcMain.handle('startMihomoMemory', ipcErrorWrapper(startMihomoMemory))
+  ipcMain.handle('stopMihomoMemory', ipcErrorWrapper(stopMihomoMemory))
+  ipcMain.handle('startMihomoLogs', ipcErrorWrapper(startMihomoLogs))
+  ipcMain.handle('stopMihomoLogs', ipcErrorWrapper(stopMihomoLogs))
+  ipcMain.handle('startMihomoConnections', ipcErrorWrapper(startMihomoConnections))
+  ipcMain.handle('stopMihomoConnections', ipcErrorWrapper(stopMihomoConnections))
   ipcMain.handle('startMonitor', (_e, detached) => ipcErrorWrapper(startMonitor)(detached))
   ipcMain.handle('triggerSysProxy', (_e, enable, onlyActiveDevice) =>
     ipcErrorWrapper(triggerSysProxy)(enable, onlyActiveDevice)

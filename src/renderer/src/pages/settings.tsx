@@ -37,12 +37,12 @@ const Settings: React.FC = () => {
             className="app-nodrag"
             title="GitHub 仓库"
             onPress={() => {
-              window.open('https://github.com/xishang0128/sparkle')
+              window.open('https://github.com/htmambo/sparkle')
             }}
           >
             <IoLogoGithub className="text-lg" />
           </Button>
-          <Button
+          {/* <Button
             isIconOnly
             size="sm"
             variant="light"
@@ -53,7 +53,7 @@ const Settings: React.FC = () => {
             }}
           >
             <FaTelegramPlane className="text-lg" />
-          </Button>
+          </Button> */}
         </>
       }
     >

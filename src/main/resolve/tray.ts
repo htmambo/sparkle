@@ -94,7 +94,10 @@ async function showCustomTray(): Promise<void> {
       webPreferences: {
         preload: join(__dirname, '../preload/index.js'),
         spellcheck: false,
-        sandbox: false
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true,
+        webSecurity: true
       }
     })
 
