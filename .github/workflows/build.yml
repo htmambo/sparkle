@@ -16,7 +16,7 @@ on:
           - Windows + Linux
           - macOS + Linux
       release_notes:
-        description: '发布说明��可选）'
+        description: '发布说明（可选）'
         required: false
         default: '更新'
   push:
