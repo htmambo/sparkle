@@ -3,9 +3,22 @@ permissions: write-all
 on:
   workflow_dispatch:
     inputs:
-      version:
-        description: 'Tag version to release'
+      platform:
+        description: '选择要打包的平台'
+        required: true
+        type: choice
+        options:
+          - 全部平台
+          - 仅 Windows
+          - 仅 Linux
+          - 仅 macOS
+          - Windows + macOS
+          - Windows + Linux
+          - macOS + Linux
+      release_notes:
+        description: '发布说明��可选）'
         required: false
+        default: '更新'
   push:
     branches:
       - master
@@ -21,53 +34,119 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        include:
-          - os: windows-latest
-            arch: x64
-            format: 7z
-          - os: windows-latest
-            arch: x64
-            format: nsis
-          - os: windows-latest
-            arch: arm64
-            format: 7z
-          - os: windows-latest
-            arch: arm64
-            format: nsis
+        include: ${{ fromJson(needs.set-matrix.outputs.matrix) }}
+    name: Build ${{ matrix.os }}-${{ matrix.arch }}${{ matrix.format && '-' || '' }}${{ matrix.format || '' }}
 
-          - os: ubuntu-latest
-            arch: x64
-            format: deb
-          - os: ubuntu-latest
-            arch: x64
-            format: rpm
-          - os: ubuntu-latest
-            arch: x64
-            format: pacman
-          - os: ubuntu-latest
-            arch: arm64
-            format: deb
-          - os: ubuntu-latest
-            arch: arm64
-            format: rpm
-          - os: ubuntu-latest
-            arch: arm64
-            format: pacman
-          - os: ubuntu-latest
-            arch: loong64
-            format: deb
-          - os: ubuntu-latest
-            arch: loong64
-            format: rpm
-          - os: ubuntu-latest
-            arch: loong64
-            format: pacman
+  set-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - name: Set Matrix
+        id: set-matrix
+        run: |
+          PLATFORM="${{ github.event.inputs.platform }}"
+          case "$PLATFORM" in
+            "全部平台")
+              MATRIX='[
+                {"os":"windows-latest","arch":"x64","format":"7z"},
+                {"os":"windows-latest","arch":"x64","format":"nsis"},
+                {"os":"windows-latest","arch":"arm64","format":"7z"},
+                {"os":"windows-latest","arch":"arm64","format":"nsis"},
+                {"os":"ubuntu-latest","arch":"x64","format":"deb"},
+                {"os":"ubuntu-latest","arch":"x64","format":"rpm"},
+                {"os":"ubuntu-latest","arch":"x64","format":"pacman"},
+                {"os":"ubuntu-latest","arch":"arm64","format":"deb"},
+                {"os":"ubuntu-latest","arch":"arm64","format":"rpm"},
+                {"os":"ubuntu-latest","arch":"arm64","format":"pacman"},
+                {"os":"ubuntu-latest","arch":"loong64","format":"deb"},
+                {"os":"ubuntu-latest","arch":"loong64","format":"rpm"},
+                {"os":"ubuntu-latest","arch":"loong64","format":"pacman"},
+                {"os":"macos-latest","arch":"x64"},
+                {"os":"macos-latest","arch":"arm64"}
+              ]'
+              ;;
+            "仅 Windows")
+              MATRIX='[
+                {"os":"windows-latest","arch":"x64","format":"7z"},
+                {"os":"windows-latest","arch":"x64","format":"nsis"},
+                {"os":"windows-latest","arch":"arm64","format":"7z"},
+                {"os":"windows-latest","arch":"arm64","format":"nsis"}
+              ]'
+              ;;
+            "仅 Linux")
+              MATRIX='[
+                {"os":"ubuntu-latest","arch":"x64","format":"deb"},
+                {"os":"ubuntu-latest","arch":"x64","format":"rpm"},
+                {"os":"ubuntu-latest","arch":"x64","format":"pacman"},
+                {"os":"ubuntu-latest","arch":"arm64","format":"deb"},
+                {"os":"ubuntu-latest","arch":"arm64","format":"rpm"},
+                {"os":"ubuntu-latest","arch":"arm64","format":"pacman"},
+                {"os":"ubuntu-latest","arch":"loong64","format":"deb"},
+                {"os":"ubuntu-latest","arch":"loong64","format":"rpm"},
+                {"os":"ubuntu-latest","arch":"loong64","format":"pacman"}
+              ]'
+              ;;
+            "仅 macOS")
+              MATRIX='[
+                {"os":"macos-latest","arch":"x64"},
+                {"os":"macos-latest","arch":"arm64"}
+              ]'
+              ;;
+            "Windows + macOS")
+              MATRIX='[
+                {"os":"windows-latest","arch":"x64","format":"7z"},
+                {"os":"windows-latest","arch":"x64","format":"nsis"},
+                {"os":"windows-latest","arch":"arm64","format":"7z"},
+                {"os":"windows-latest","arch":"arm64","format":"nsis"},
+                {"os":"macos-latest","arch":"x64"},
+                {"os":"macos-latest","arch":"arm64"}
+              ]'
+              ;;
+            "Windows + Linux")
+              MATRIX='[
+                {"os":"windows-latest","arch":"x64","format":"7z"},
+                {"os":"windows-latest","arch":"x64","format":"nsis"},
+                {"os":"windows-latest","arch":"arm64","format":"7z"},
+                {"os":"windows-latest","arch":"arm64","format":"nsis"},
+                {"os":"ubuntu-latest","arch":"x64","format":"deb"},
+                {"os":"ubuntu-latest","arch":"x64","format":"rpm"},
+                {"os":"ubuntu-latest","arch":"x64","format":"pacman"},
+                {"os":"ubuntu-latest","arch":"arm64","format":"deb"},
+                {"os":"ubuntu-latest","arch":"arm64","format":"rpm"},
+                {"os":"ubuntu-latest","arch":"arm64","format":"pacman"},
+                {"os":"ubuntu-latest","arch":"loong64","format":"deb"},
+                {"os":"ubuntu-latest","arch":"loong64","format":"rpm"},
+                {"os":"ubuntu-latest","arch":"loong64","format":"pacman"}
+              ]'
+              ;;
+            "macOS + Linux")
+              MATRIX='[
+                {"os":"ubuntu-latest","arch":"x64","format":"deb"},
+                {"os":"ubuntu-latest","arch":"x64","format":"rpm"},
+                {"os":"ubuntu-latest","arch":"x64","format":"pacman"},
+                {"os":"ubuntu-latest","arch":"arm64","format":"deb"},
+                {"os":"ubuntu-latest","arch":"arm64","format":"rpm"},
+                {"os":"ubuntu-latest","arch":"arm64","format":"pacman"},
+                {"os":"ubuntu-latest","arch":"loong64","format":"deb"},
+                {"os":"ubuntu-latest","arch":"loong64","format":"rpm"},
+                {"os":"ubuntu-latest","arch":"loong64","format":"pacman"},
+                {"os":"macos-latest","arch":"x64"},
+                {"os":"macos-latest","arch":"arm64"}
+              ]'
+              ;;
+            *)
+              MATRIX='[]'
+              ;;
+          esac
+          echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
 
-          - os: macos-latest
-            arch: x64
-          - os: macos-latest
-            arch: arm64
-
+  build:
+    needs: set-matrix
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include: ${{ fromJson(needs.set-matrix.outputs.matrix) }}
     name: Build ${{ matrix.os }}-${{ matrix.arch }}${{ matrix.format && '-' || '' }}${{ matrix.format || '' }}
 
     steps:
@@ -82,21 +161,9 @@ jobs:
         run: |
           GIT_COMMIT_HASH=$(git rev-parse --short HEAD)
           VERSION=$(jq -r '.version' package.json)
-
-          if [ "${{ github.event.inputs.version }}" == "" ]; then
-            BASE_VERSION=$(echo $VERSION | awk -F. '{print $1"."$2"."$3+1}')
-            VERSION_PREFIX=${VERSION_PREFIX:-beta}
-            RELEASE_VERSION="${BASE_VERSION}-${VERSION_PREFIX}-${GIT_COMMIT_HASH}"
-          else
-            INPUT_VERSION="${{ github.event.inputs.version }}"
-            CLEAN_VERSION=$(echo "$INPUT_VERSION" | sed 's/^v//')
-            if [[ ! "$CLEAN_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-              echo "Invalid version format: $INPUT_VERSION"
-              exit 1
-            fi
-            RELEASE_VERSION="$CLEAN_VERSION"
-          fi
-
+          BASE_VERSION=$(echo $VERSION | awk -F. '{print $1"."$2"."$3+1}')
+          VERSION_PREFIX=${VERSION_PREFIX:-beta}
+          RELEASE_VERSION="${BASE_VERSION}-${VERSION_PREFIX}-${GIT_COMMIT_HASH}"
           jq --arg version "$RELEASE_VERSION" '.version = $version' package.json > tmp.json && mv tmp.json package.json
 
       - name: Keep product name lowercase on Linux
@@ -173,10 +240,9 @@ jobs:
           rm -rf workdir
 
       - name: Create Changelog
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          git log -1 --pretty=format:"%s%n%b" > changelog.md
+          RELEASE_NOTES="${{ github.event.inputs.release_notes }}"
+          echo "${RELEASE_NOTES:-更新}" > changelog.md
 
       - name: Generate latest.yml
         shell: bash
@@ -194,11 +260,16 @@ jobs:
             changelog.md
 
   pre-release:
-    needs: [build]
+    needs: [set-matrix, build]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Create Changelog
+        run: |
+          RELEASE_NOTES="${{ github.event.inputs.release_notes }}"
+          echo "${RELEASE_NOTES:-更新}" > changelog.md
 
       - name: Download Artifacts
         uses: actions/download-artifact@v4
@@ -225,15 +296,15 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: pre-release
-          body_path: bin/changelog.md
+          body_path: changelog.md
           files: |
             bin/latest.yml
             bin/dist/*
           prerelease: true
 
   release:
-    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && github.event.inputs.version != '')
-    needs: [build]
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [set-matrix, build]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -242,53 +313,10 @@ jobs:
           fetch-depth: '0'
           fetch-tags: 'true'
 
-      - name: Generate Changelog
-        env:
-          API_URL: ${{ secrets.API_URL }}
-          API_KEY: ${{ secrets.API_KEY }}
+      - name: Create Changelog
         run: |
-          TEXT=$(git log $(jq -r .version package.json)..HEAD --pretty=format:%s | grep -v '[0-9]\+\.[0-9]\+\.[0-9]\+$' | sed ':a;N;$!ba;s/\n/\\n/g')
-          QUESTION="Translate into Chinese:\n"""\n$TEXT\n""""
-          PAYLOAD=$(cat <<EOF
-          {
-            "stream": false,
-            "model": "gpt-5-mini",
-            "messages": [
-              {
-                "role": "system",
-                "content": "You are a professional translation engine, please translate the text into a colloquial, professional, elegant and fluent content, without the style of machine translation. You must only translate the text content, never interpret it."
-              },
-              {
-                "role": "user",
-                "content": "$QUESTION"
-              }
-            ]
-          }
-          EOF
-          )
-          RESPONSE=$(curl -s -X POST "$API_URL/v1/chat/completions" \
-            -H "Authorization: Bearer $API_KEY" \
-            -H "Content-Type: application/json" \
-            -d "$PAYLOAD" \
-            --max-time 30)
-          echo '# 更新日志' > changelog.md
-          echo $RESPONSE | jq .choices[0].message.content -r | sed 's/\\n/\n/g' | sed 's/^/ - /g' >> changelog.md
-
-      - name: Update Version
-        run: |
-          INPUT_VERSION="${{ github.event.inputs.version }}"
-          CLEAN_VERSION=$(echo "$INPUT_VERSION" | sed 's/^v//')
-          if [[ ! "$CLEAN_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "Invalid version format: $INPUT_VERSION"
-            exit 1
-          fi
-          jq --arg version "$CLEAN_VERSION" '.version = $version' package.json > tmp.json && mv tmp.json package.json
-
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git config --global user.name "github-actions[bot]"
-          git add package.json
-          git commit -m "update version to $CLEAN_VERSION"
-          git push
+          RELEASE_NOTES="${{ github.event.inputs.release_notes }}"
+          echo "${RELEASE_NOTES:-更新}" > changelog.md
 
       - name: Install Dependencies and Updater
         run: |
@@ -305,14 +333,14 @@ jobs:
         uses: 8Mi-Tech/delete-release-assets-action@main
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          tag: ${{ github.event.inputs.version != '' && github.event.inputs.version || github.ref }}
+          tag: ${{ github.ref }}
           deleteOnlyFromDrafts: false
 
       - name: Publish Release
         if: success()
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.event.inputs.version != '' && github.event.inputs.version || github.ref }}
+          tag_name: ${{ github.ref }}
           body_path: changelog.md
           files: |
             latest.yml
