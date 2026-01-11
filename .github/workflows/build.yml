@@ -49,42 +49,26 @@ jobs:
           case "$PLATFORM" in
             "全部平台")
               MATRIX='[
-                {"os":"windows-latest","arch":"x64","format":"7z"},
-                {"os":"windows-latest","arch":"x64","format":"nsis"},
-                {"os":"windows-latest","arch":"arm64","format":"7z"},
-                {"os":"windows-latest","arch":"arm64","format":"nsis"},
-                {"os":"ubuntu-latest","arch":"x64","format":"deb"},
-                {"os":"ubuntu-latest","arch":"x64","format":"rpm"},
-                {"os":"ubuntu-latest","arch":"x64","format":"pacman"},
-                {"os":"ubuntu-latest","arch":"arm64","format":"deb"},
-                {"os":"ubuntu-latest","arch":"arm64","format":"rpm"},
-                {"os":"ubuntu-latest","arch":"arm64","format":"pacman"},
-                {"os":"ubuntu-latest","arch":"loong64","format":"deb"},
-                {"os":"ubuntu-latest","arch":"loong64","format":"rpm"},
-                {"os":"ubuntu-latest","arch":"loong64","format":"pacman"},
+                {"os":"windows-latest","arch":"x64"},
+                {"os":"windows-latest","arch":"arm64"},
+                {"os":"ubuntu-latest","arch":"x64"},
+                {"os":"ubuntu-latest","arch":"arm64"},
+                {"os":"ubuntu-latest","arch":"loong64"},
                 {"os":"macos-latest","arch":"x64"},
                 {"os":"macos-latest","arch":"arm64"}
               ]'
               ;;
             "仅 Windows")
               MATRIX='[
-                {"os":"windows-latest","arch":"x64","format":"7z"},
-                {"os":"windows-latest","arch":"x64","format":"nsis"},
-                {"os":"windows-latest","arch":"arm64","format":"7z"},
-                {"os":"windows-latest","arch":"arm64","format":"nsis"}
+                {"os":"windows-latest","arch":"x64"},
+                {"os":"windows-latest","arch":"arm64"}
               ]'
               ;;
             "仅 Linux")
               MATRIX='[
-                {"os":"ubuntu-latest","arch":"x64","format":"deb"},
-                {"os":"ubuntu-latest","arch":"x64","format":"rpm"},
-                {"os":"ubuntu-latest","arch":"x64","format":"pacman"},
-                {"os":"ubuntu-latest","arch":"arm64","format":"deb"},
-                {"os":"ubuntu-latest","arch":"arm64","format":"rpm"},
-                {"os":"ubuntu-latest","arch":"arm64","format":"pacman"},
-                {"os":"ubuntu-latest","arch":"loong64","format":"deb"},
-                {"os":"ubuntu-latest","arch":"loong64","format":"rpm"},
-                {"os":"ubuntu-latest","arch":"loong64","format":"pacman"}
+                {"os":"ubuntu-latest","arch":"x64"},
+                {"os":"ubuntu-latest","arch":"arm64"},
+                {"os":"ubuntu-latest","arch":"loong64"}
               ]'
               ;;
             "仅 macOS")
@@ -95,42 +79,26 @@ jobs:
               ;;
             "Windows + macOS")
               MATRIX='[
-                {"os":"windows-latest","arch":"x64","format":"7z"},
-                {"os":"windows-latest","arch":"x64","format":"nsis"},
-                {"os":"windows-latest","arch":"arm64","format":"7z"},
-                {"os":"windows-latest","arch":"arm64","format":"nsis"},
+                {"os":"windows-latest","arch":"x64"},
+                {"os":"windows-latest","arch":"arm64"},
                 {"os":"macos-latest","arch":"x64"},
                 {"os":"macos-latest","arch":"arm64"}
               ]'
               ;;
             "Windows + Linux")
               MATRIX='[
-                {"os":"windows-latest","arch":"x64","format":"7z"},
-                {"os":"windows-latest","arch":"x64","format":"nsis"},
-                {"os":"windows-latest","arch":"arm64","format":"7z"},
-                {"os":"windows-latest","arch":"arm64","format":"nsis"},
-                {"os":"ubuntu-latest","arch":"x64","format":"deb"},
-                {"os":"ubuntu-latest","arch":"x64","format":"rpm"},
-                {"os":"ubuntu-latest","arch":"x64","format":"pacman"},
-                {"os":"ubuntu-latest","arch":"arm64","format":"deb"},
-                {"os":"ubuntu-latest","arch":"arm64","format":"rpm"},
-                {"os":"ubuntu-latest","arch":"arm64","format":"pacman"},
-                {"os":"ubuntu-latest","arch":"loong64","format":"deb"},
-                {"os":"ubuntu-latest","arch":"loong64","format":"rpm"},
-                {"os":"ubuntu-latest","arch":"loong64","format":"pacman"}
+                {"os":"windows-latest","arch":"x64"},
+                {"os":"windows-latest","arch":"arm64"},
+                {"os":"ubuntu-latest","arch":"x64"},
+                {"os":"ubuntu-latest","arch":"arm64"},
+                {"os":"ubuntu-latest","arch":"loong64"}
               ]'
               ;;
             "macOS + Linux")
               MATRIX='[
-                {"os":"ubuntu-latest","arch":"x64","format":"deb"},
-                {"os":"ubuntu-latest","arch":"x64","format":"rpm"},
-                {"os":"ubuntu-latest","arch":"x64","format":"pacman"},
-                {"os":"ubuntu-latest","arch":"arm64","format":"deb"},
-                {"os":"ubuntu-latest","arch":"arm64","format":"rpm"},
-                {"os":"ubuntu-latest","arch":"arm64","format":"pacman"},
-                {"os":"ubuntu-latest","arch":"loong64","format":"deb"},
-                {"os":"ubuntu-latest","arch":"loong64","format":"rpm"},
-                {"os":"ubuntu-latest","arch":"loong64","format":"pacman"},
+                {"os":"ubuntu-latest","arch":"x64"},
+                {"os":"ubuntu-latest","arch":"arm64"},
+                {"os":"ubuntu-latest","arch":"loong64"},
                 {"os":"macos-latest","arch":"x64"},
                 {"os":"macos-latest","arch":"arm64"}
               ]'
@@ -153,7 +121,7 @@ jobs:
     strategy:
       matrix:
         include: ${{ fromJson(needs.set-matrix.outputs.matrix) }}
-    name: Build ${{ matrix.os }}-${{ matrix.arch }}${{ matrix.format && '-' || '' }}${{ matrix.format || '' }}
+    name: Build ${{ matrix.os }}-${{ matrix.arch }}
 
     steps:
       - name: Checkout
@@ -198,7 +166,7 @@ jobs:
           sed -i "s/productName: Sparkle/productName: sparkle/" electron-builder.yml
 
       - name: Install Build Tools
-        if: matrix.os == 'ubuntu-latest' && matrix.format == 'pacman'
+        if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt-get update && sudo apt-get install -y libarchive-tools fakeroot
 
@@ -231,21 +199,21 @@ jobs:
         shell: bash
         run: |
           if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-            pnpm build:win ${{ matrix.format }} --${{ matrix.arch }}
+            pnpm build:win --${{ matrix.arch }}
           elif [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
             if [[ "${{ matrix.arch }}" == "loong64" ]]; then
               export ELECTRON_MIRROR="https://github.com/darkyzhou/electron-loong64/releases/download/"
               export electron_use_remote_checksums=1
-              pnpm build:linux ${{ matrix.format }} --${{ matrix.arch }}
+              pnpm build:linux --${{ matrix.arch }}
             else
-              pnpm build:linux ${{ matrix.format }} --${{ matrix.arch }}
+              pnpm build:linux --${{ matrix.arch }}
             fi
           else
             pnpm build:mac --${{ matrix.arch }}
           fi
 
       - name: Add Portable Flag
-        if: matrix.os == 'windows-latest' && matrix.format == '7z'
+        if: matrix.os == 'windows-latest'
         shell: pwsh
         run: |
           New-Item -Path "PORTABLE" -ItemType File
@@ -254,7 +222,7 @@ jobs:
           }
 
       - name: Magic build for AOSC OS(loongarch64)
-        if: matrix.os == 'ubuntu-latest' && matrix.format == 'deb' && matrix.arch == 'loong64'
+        if: matrix.os == 'ubuntu-latest' && matrix.arch == 'loong64'
         shell: bash
         run: |
           set -e
@@ -277,7 +245,7 @@ jobs:
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.os }}-${{ matrix.arch }}${{ matrix.format && '-' || '' }}${{ matrix.format || '' }}
+          name: ${{ matrix.os }}-${{ matrix.arch }}
           path: |
             dist/sparkle*
             !dist/sparkle.app.plist
