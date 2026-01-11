@@ -338,6 +338,49 @@ app.whenReady().then(async () => {
   })
 })
 
+// 验证远程 URL 是否安全（协议、域名、内网地址）
+function ensureSafeRemote(urlStr: string): string {
+  const parsed = new URL(urlStr)
+
+  // 1. 仅允许 HTTPS
+  if (parsed.protocol !== 'https:') {
+    throw new Error('仅允许 https 链接')
+  }
+
+  // 2. 禁止访问本地/内网地址
+  const hostname = parsed.hostname
+  if (
+    hostname === 'localhost' ||
+    hostname === '127.0.0.1' ||
+    hostname === '::1' ||
+    hostname.startsWith('127.') ||
+    hostname.startsWith('192.168.') ||
+    hostname.startsWith('10.') ||
+    // 172.16.0.0/12 (172.16.0.0 - 172.31.255.255)
+    hostname.startsWith('172.16.') ||
+    hostname.startsWith('172.17.') ||
+    hostname.startsWith('172.18.') ||
+    hostname.startsWith('172.19.') ||
+    hostname.startsWith('172.20.') ||
+    hostname.startsWith('172.21.') ||
+    hostname.startsWith('172.22.') ||
+    hostname.startsWith('172.23.') ||
+    hostname.startsWith('172.24.') ||
+    hostname.startsWith('172.25.') ||
+    hostname.startsWith('172.26.') ||
+    hostname.startsWith('172.27.') ||
+    hostname.startsWith('172.28.') ||
+    hostname.startsWith('172.29.') ||
+    hostname.startsWith('172.30.') ||
+    hostname.startsWith('172.31.') ||
+    hostname.endsWith('.local')
+  ) {
+    throw new Error('禁止访问本地或内网地址')
+  }
+
+  return parsed.toString()
+}
+
 async function handleDeepLink(url: string): Promise<void> {
   if (!url.startsWith('clash://') && !url.startsWith('mihomo://') && !url.startsWith('sparkle://'))
     return
@@ -352,13 +395,14 @@ async function handleDeepLink(url: string): Promise<void> {
           throw new Error('缺少参数 url')
         }
 
-        const confirmed = await showProfileInstallConfirm(profileUrl, profileName)
+        const safeProfileUrl = ensureSafeRemote(profileUrl)
+        const confirmed = await showProfileInstallConfirm(safeProfileUrl, profileName)
 
         if (confirmed) {
           await addProfileItem({
             type: 'remote',
             name: profileName ?? undefined,
-            url: profileUrl
+            url: safeProfileUrl
           })
           mainWindow?.webContents.send('profileConfigUpdated')
           new Notification({ title: '订阅导入成功' }).show()
@@ -376,15 +420,16 @@ async function handleDeepLink(url: string): Promise<void> {
           throw new Error('缺少参数 url')
         }
 
-        const confirmed = await showOverrideInstallConfirm(urlParam, profileName)
+        const safeUrl = ensureSafeRemote(urlParam)
+        const confirmed = await showOverrideInstallConfirm(safeUrl, profileName)
 
         if (confirmed) {
-          const url = new URL(urlParam)
+          const url = new URL(safeUrl)
           const name = url.pathname.split('/').pop()
           await addOverrideItem({
             type: 'remote',
             name: profileName ?? (name ? decodeURIComponent(name) : undefined),
-            url: urlParam,
+            url: safeUrl,
             ext: url.pathname.endsWith('.js') ? 'js' : 'yaml'
           })
           mainWindow?.webContents.send('overrideConfigUpdated')
@@ -523,7 +568,10 @@ export async function createWindow(appConfig?: AppConfig): Promise<void> {
       webPreferences: {
         preload: join(__dirname, '../preload/index.js'),
         spellcheck: false,
-        sandbox: false
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true,
+        webSecurity: true
       }
     })
     mainWindowState.manage(mainWindow)

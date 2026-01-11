@@ -8,3 +8,7 @@ out
 *.log*
 .idea
 *.ttf
+.ace-tool/
+.vscode/
+.env
+.claude/

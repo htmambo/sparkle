@@ -19,9 +19,12 @@ interface Props {
   onChange?: (value: string) => void
 }
 
+// 跨编辑器实例共享的初始化标志
+const MONACO_INIT_FLAG = '__sparkle_monaco_initialized__'
 let initialized = false
 const monacoInitialization = (): void => {
-  if (initialized) return
+  // 检查全局标志，避免重复初始化
+  if (initialized || (globalThis as Record<string, unknown>)[MONACO_INIT_FLAG]) return
 
   // configure yaml worker
   configureMonacoYaml(monaco, {
@@ -38,44 +41,44 @@ const monacoInitialization = (): void => {
             '\\+rules': {
               type: 'array',
               $ref: '#/definitions/rules',
-              description: '“+”开头表示将内容插入到原数组前面'
+              description: '"+"开头表示将内容插入到原数组前面'
             },
             'rules\\+': {
               type: 'array',
               $ref: '#/definitions/rules',
-              description: '“+”结尾表示将内容追加到原数组后面'
+              description: '"+"结尾表示将内容追加到原数组后面'
             },
             '\\+proxies': {
               type: 'array',
               $ref: '#/definitions/proxies',
-              description: '“+”开头表示将内容插入到原数组前面'
+              description: '"+"开头表示将内容插入到原数组前面'
             },
             'proxies\\+': {
               type: 'array',
               $ref: '#/definitions/proxies',
-              description: '“+”结尾表示将内容追加到原数组后面'
+              description: '"+"结尾表示将内容追加到原数组后面'
             },
             '\\+proxy-groups': {
               type: 'array',
               $ref: '#/definitions/proxy-groups',
-              description: '“+”开头表示将内容插入到原数组前面'
+              description: '"+"开头表示将内容插入到原数组前面'
             },
             'proxy-groups\\+': {
               type: 'array',
               $ref: '#/definitions/proxy-groups',
-              description: '“+”结尾表示将内容追加到原数组后面'
+              description: '"+"结尾表示将内容追加到原数组后面'
             },
             '^\\+': {
               type: 'array',
-              description: '“+”开头表示将内容插入到原数组前面'
+              description: '"+"开头表示将内容插入到原数组前面'
             },
             '\\+$': {
               type: 'array',
-              description: '“+”结尾表示将内容追加到原数组后面'
+              description: '"+"结尾表示将内容追加到原数组后面'
             },
             '!$': {
               type: 'object',
-              description: '“!”结尾表示强制覆盖该项而不进行递归合并'
+              description: '"!"结尾表示强制覆盖该项而不进行递归合并'
             }
           }
         }
@@ -85,6 +88,8 @@ const monacoInitialization = (): void => {
   // configure PAC definition
   monaco.languages.typescript.javascriptDefaults.addExtraLib(pac, 'pac.d.ts')
   initialized = true
+  // 设置全局标志
+  ;(globalThis as Record<string, unknown>)[MONACO_INIT_FLAG] = true
 }
 
 export const BaseEditor: React.FC<Props> = (props) => {
@@ -103,6 +108,21 @@ export const BaseEditor: React.FC<Props> = (props) => {
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor>(undefined)
   const diffEditorRef = useRef<monaco.editor.IStandaloneDiffEditor>(undefined)
 
+  // 追踪 Model 实例
+  const modelRef = useRef<monaco.editor.ITextModel | null>(null)
+  const originalModelRef = useRef<monaco.editor.ITextModel | null>(null)
+  const modifiedModelRef = useRef<monaco.editor.ITextModel | null>(null)
+
+  // 释放所有 Model 实例
+  const disposeModels = (): void => {
+    modelRef.current?.dispose()
+    modelRef.current = null
+    originalModelRef.current?.dispose()
+    originalModelRef.current = null
+    modifiedModelRef.current?.dispose()
+    modifiedModelRef.current = null
+  }
+
   const editorWillMount = (): void => {
     monacoInitialization()
   }
@@ -113,6 +133,7 @@ export const BaseEditor: React.FC<Props> = (props) => {
     const uri = monaco.Uri.parse(`${nanoid()}.${language === 'yaml' ? 'clash' : ''}.${language}`)
     const model = monaco.editor.createModel(value, language, uri)
     editorRef.current.setModel(model)
+    modelRef.current = model // 追踪 model
   }
   const diffEditorDidMount = (editor: monaco.editor.IStandaloneDiffEditor): void => {
     diffEditorRef.current = editor
@@ -129,6 +150,8 @@ export const BaseEditor: React.FC<Props> = (props) => {
       original: originalModel,
       modified: modifiedModel
     })
+    originalModelRef.current = originalModel // 追踪 models
+    modifiedModelRef.current = modifiedModel
   }
 
   const options = {
@@ -183,7 +206,7 @@ export const BaseEditor: React.FC<Props> = (props) => {
         options={options}
         editorWillMount={editorWillMount}
         editorDidMount={diffEditorDidMount}
-        editorWillUnmount={(): void => {}}
+        editorWillUnmount={disposeModels}
         onChange={onChange}
       />
     )
@@ -198,7 +221,7 @@ export const BaseEditor: React.FC<Props> = (props) => {
       options={options}
       editorWillMount={editorWillMount}
       editorDidMount={editorDidMount}
-      editorWillUnmount={(): void => {}}
+      editorWillUnmount={disposeModels}
       onChange={onChange}
     />
   )

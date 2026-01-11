@@ -149,6 +149,20 @@ function ipcErrorWrapper<T>( // eslint-disable-next-line @typescript-eslint/no-e
     }
   }
 }
+
+/**
+ * 注册 renderer 可用的 IPC 调用入口
+ *
+ * @description
+ * 此函数注册所有从 renderer 进程调用的 IPC handlers。
+ * 每个 handler 都通过 `ipcErrorWrapper` 包装，确保错误被结构化返回。
+ *
+ * @example
+ * // Renderer 中调用：
+ * const result = await window.electron.ipcRenderer.invoke('getAppConfig')
+ *
+ * @see {@link ipcErrorWrapper} - 错误包装器实现
+ */
 export function registerIpcMainHandlers(): void {
   ipcMain.handle('mihomoVersion', ipcErrorWrapper(mihomoVersion))
   ipcMain.handle('mihomoConfig', ipcErrorWrapper(mihomoConfig))

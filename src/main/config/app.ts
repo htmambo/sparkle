@@ -9,7 +9,13 @@ import { encryptString, decryptString, isEncrypted } from '../utils/encrypt'
 let appConfig: AppConfig
 let writePromise: Promise<void> = Promise.resolve()
 
-const ENCRYPTED_FIELDS = ['systemCorePath', 'serviceAuthKey'] as const
+// 在磁盘上加密敏感字段，防止凭证明文存储
+const ENCRYPTED_FIELDS = [
+  'systemCorePath',
+  'serviceAuthKey',
+  'githubToken', // 新增
+  'webdavPassword' // 新增
+] as const
 
 function isValidConfig(config: unknown): config is AppConfig {
   if (!config || typeof config !== 'object') return false
@@ -52,7 +58,8 @@ function decryptConfig(config: AppConfig): AppConfig {
     const value = result[field]
     if (value && typeof value === 'string') {
       if (!isEncrypted(value)) {
-        ;(result[field] as string) = ''
+        // 兼容旧明文数据，下次保存时自动加密
+        ;(result[field] as string) = value
       } else {
         ;(result[field] as string) = decryptString(value)
       }

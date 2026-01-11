@@ -11,12 +11,16 @@ import { mihomoIpcPath } from '../utils/dirs'
 let axiosIns: AxiosInstance = null!
 let mihomoTrafficWs: WebSocket | null = null
 let trafficRetry = 10
+let trafficStopped = false // 新增停止标志
 let mihomoMemoryWs: WebSocket | null = null
 let memoryRetry = 10
+let memoryStopped = false // 新增停止标志
 let mihomoLogsWs: WebSocket | null = null
 let logsRetry = 10
+let logsStopped = false // 新增停止标志
 let mihomoConnectionsWs: WebSocket | null = null
 let connectionsRetry = 10
+let connectionsStopped = false // 新增停止标志
 
 export const getAxios = async (force: boolean = false): Promise<AxiosInstance> => {
   const currentSocketPath = mihomoIpcPath()
@@ -210,10 +214,12 @@ export const mihomoUpgradeUI = async (): Promise<void> => {
 }
 
 export const startMihomoTraffic = async (): Promise<void> => {
+  trafficStopped = false // 重置停止标志
   await mihomoTraffic()
 }
 
 export const stopMihomoTraffic = (): void => {
+  trafficStopped = true // 设置停止标志
   if (mihomoTrafficWs) {
     mihomoTrafficWs.removeAllListeners()
     if (mihomoTrafficWs.readyState === WebSocket.OPEN) {
@@ -247,7 +253,7 @@ const mihomoTraffic = async (): Promise<void> => {
   }
 
   mihomoTrafficWs.onclose = (): void => {
-    if (trafficRetry) {
+    if (trafficRetry && !trafficStopped) { // 检查停止标志
       trafficRetry--
       mihomoTraffic()
     }
@@ -262,10 +268,12 @@ const mihomoTraffic = async (): Promise<void> => {
 }
 
 export const startMihomoMemory = async (): Promise<void> => {
+  memoryStopped = false // 重置停止标志
   await mihomoMemory()
 }
 
 export const stopMihomoMemory = (): void => {
+  memoryStopped = true // 设置停止标志
   if (mihomoMemoryWs) {
     mihomoMemoryWs.removeAllListeners()
     if (mihomoMemoryWs.readyState === WebSocket.OPEN) {
@@ -289,7 +297,7 @@ const mihomoMemory = async (): Promise<void> => {
   }
 
   mihomoMemoryWs.onclose = (): void => {
-    if (memoryRetry) {
+    if (memoryRetry && !memoryStopped) { // 检查停止标志
       memoryRetry--
       mihomoMemory()
     }
@@ -304,10 +312,12 @@ const mihomoMemory = async (): Promise<void> => {
 }
 
 export const startMihomoLogs = async (): Promise<void> => {
+  logsStopped = false // 重置停止标志
   await mihomoLogs()
 }
 
 export const stopMihomoLogs = (): void => {
+  logsStopped = true // 设置停止标志
   if (mihomoLogsWs) {
     mihomoLogsWs.removeAllListeners()
     if (mihomoLogsWs.readyState === WebSocket.OPEN) {
@@ -333,7 +343,7 @@ const mihomoLogs = async (): Promise<void> => {
   }
 
   mihomoLogsWs.onclose = (): void => {
-    if (logsRetry) {
+    if (logsRetry && !logsStopped) { // 检查停止标志
       logsRetry--
       mihomoLogs()
     }
@@ -348,10 +358,12 @@ const mihomoLogs = async (): Promise<void> => {
 }
 
 export const startMihomoConnections = async (): Promise<void> => {
+  connectionsStopped = false // 重置停止标志
   await mihomoConnections()
 }
 
 export const stopMihomoConnections = (): void => {
+  connectionsStopped = true // 设置停止标志
   if (mihomoConnectionsWs) {
     mihomoConnectionsWs.removeAllListeners()
     if (mihomoConnectionsWs.readyState === WebSocket.OPEN) {
@@ -383,7 +395,7 @@ const mihomoConnections = async (): Promise<void> => {
   }
 
   mihomoConnectionsWs.onclose = (): void => {
-    if (connectionsRetry) {
+    if (connectionsRetry && !connectionsStopped) { // 检查停止标志
       connectionsRetry--
       mihomoConnections()
     }
