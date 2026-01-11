@@ -11,16 +11,29 @@ import { mihomoIpcPath } from '../utils/dirs'
 let axiosIns: AxiosInstance = null!
 let mihomoTrafficWs: WebSocket | null = null
 let trafficRetry = 10
-let trafficStopped = false // 新增停止标志
+let trafficRetryCount = 0
+let trafficStopped = false
 let mihomoMemoryWs: WebSocket | null = null
 let memoryRetry = 10
-let memoryStopped = false // 新增停止标志
+let memoryRetryCount = 0
+let memoryStopped = false
 let mihomoLogsWs: WebSocket | null = null
 let logsRetry = 10
-let logsStopped = false // 新增停止标志
+let logsRetryCount = 0
+let logsStopped = false
 let mihomoConnectionsWs: WebSocket | null = null
 let connectionsRetry = 10
-let connectionsStopped = false // 新增停止标志
+let connectionsRetryCount = 0
+let connectionsStopped = false
+
+// 指数退避算法，添加 jitter 随机化
+const getBackoffDelay = (retryCount: number): number => {
+  // 指数退避：1s, 2s, 4s, 8s, 16s, 最大 30s
+  const baseDelay = Math.min(1000 * Math.pow(2, retryCount), 30000)
+  // 添加 jitter：±20% 随机化
+  const jitter = baseDelay * 0.2 * (Math.random() * 2 - 1)
+  return Math.max(baseDelay + jitter, 1000)
+}
 
 export const getAxios = async (force: boolean = false): Promise<AxiosInstance> => {
   const currentSocketPath = mihomoIpcPath()
@@ -236,6 +249,7 @@ const mihomoTraffic = async (): Promise<void> => {
     const data = e.data as string
     const json = JSON.parse(data) as ControllerTraffic
     trafficRetry = 10
+    trafficRetryCount = 0 // 重置重连计数
     try {
       mainWindow?.webContents.send('mihomoTraffic', json)
       if (process.platform !== 'linux') {
@@ -253,9 +267,13 @@ const mihomoTraffic = async (): Promise<void> => {
   }
 
   mihomoTrafficWs.onclose = (): void => {
-    if (trafficRetry && !trafficStopped) { // 检查停止标志
+    if (trafficRetry && !trafficStopped) {
       trafficRetry--
-      mihomoTraffic()
+      trafficRetryCount++
+      const delay = getBackoffDelay(trafficRetryCount)
+      setTimeout(() => {
+        if (!trafficStopped) mihomoTraffic()
+      }, delay)
     }
   }
 
@@ -289,6 +307,7 @@ const mihomoMemory = async (): Promise<void> => {
   mihomoMemoryWs.onmessage = (e): void => {
     const data = e.data as string
     memoryRetry = 10
+    memoryRetryCount = 0 // 重置重连计数
     try {
       mainWindow?.webContents.send('mihomoMemory', JSON.parse(data) as ControllerMemory)
     } catch {
@@ -297,9 +316,13 @@ const mihomoMemory = async (): Promise<void> => {
   }
 
   mihomoMemoryWs.onclose = (): void => {
-    if (memoryRetry && !memoryStopped) { // 检查停止标志
+    if (memoryRetry && !memoryStopped) {
       memoryRetry--
-      mihomoMemory()
+      memoryRetryCount++
+      const delay = getBackoffDelay(memoryRetryCount)
+      setTimeout(() => {
+        if (!memoryStopped) mihomoMemory()
+      }, delay)
     }
   }
 
@@ -335,6 +358,7 @@ const mihomoLogs = async (): Promise<void> => {
   mihomoLogsWs.onmessage = (e): void => {
     const data = e.data as string
     logsRetry = 10
+    logsRetryCount = 0 // 重置重连计数
     try {
       mainWindow?.webContents.send('mihomoLogs', JSON.parse(data) as ControllerLog)
     } catch {
@@ -343,9 +367,13 @@ const mihomoLogs = async (): Promise<void> => {
   }
 
   mihomoLogsWs.onclose = (): void => {
-    if (logsRetry && !logsStopped) { // 检查停止标志
+    if (logsRetry && !logsStopped) {
       logsRetry--
-      mihomoLogs()
+      logsRetryCount++
+      const delay = getBackoffDelay(logsRetryCount)
+      setTimeout(() => {
+        if (!logsStopped) mihomoLogs()
+      }, delay)
     }
   }
 
@@ -387,6 +415,7 @@ const mihomoConnections = async (): Promise<void> => {
   mihomoConnectionsWs.onmessage = (e): void => {
     const data = e.data as string
     connectionsRetry = 10
+    connectionsRetryCount = 0 // 重置重连计数
     try {
       mainWindow?.webContents.send('mihomoConnections', JSON.parse(data) as ControllerConnections)
     } catch {
@@ -395,9 +424,13 @@ const mihomoConnections = async (): Promise<void> => {
   }
 
   mihomoConnectionsWs.onclose = (): void => {
-    if (connectionsRetry && !connectionsStopped) { // 检查停止标志
+    if (connectionsRetry && !connectionsStopped) {
       connectionsRetry--
-      mihomoConnections()
+      connectionsRetryCount++
+      const delay = getBackoffDelay(connectionsRetryCount)
+      setTimeout(() => {
+        if (!connectionsStopped) mihomoConnections()
+      }, delay)
     }
   }
 

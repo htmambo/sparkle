@@ -199,8 +199,10 @@ const Connections: React.FC = () => {
         cachedConnections = finalAllConnections
       } else {
         const activeConnIds = new Set(activeConns.map((conn) => conn.id))
+        const activeConnsMap = new Map(activeConns.map((conn) => [conn.id, conn]))
+
         const allConns = allConnections.map((conn) => {
-          const activeConn = activeConns.find((ac) => ac.id === conn.id)
+          const activeConn = activeConnsMap.get(conn.id)
           return activeConn || { ...conn, isActive: false, downloadSpeed: 0, uploadSpeed: 0 }
         })
 
@@ -216,9 +218,9 @@ const Connections: React.FC = () => {
     window.electron.ipcRenderer.on('mihomoConnections', handleConnections)
 
     return (): void => {
-      window.electron.ipcRenderer.removeAllListeners('mihomoConnections')
+      window.electron.ipcRenderer.removeListener('mihomoConnections', handleConnections)
     }
-  }, [allConnections, activeConnections, closedConnections, deletedIds])
+  }, [deletedIds])
 
   const processAppNameQueue = useCallback(async () => {
     if (processingAppNames.current.size >= 3 || appNameRequestQueue.current.size === 0) return
