@@ -19,7 +19,15 @@ import {
   mihomoVersion,
   mihomoConfig,
   patchMihomoConfig,
-  restartMihomoConnections
+  restartMihomoConnections,
+  startMihomoTraffic,
+  stopMihomoTraffic,
+  startMihomoMemory,
+  stopMihomoMemory,
+  startMihomoLogs,
+  stopMihomoLogs,
+  startMihomoConnections,
+  stopMihomoConnections
 } from '../core/mihomoApi'
 import { checkAutoRun, disableAutoRun, enableAutoRun } from '../sys/autoRun'
 import {
@@ -228,6 +236,14 @@ export function registerIpcMainHandlers(): void {
   ipcMain.handle('setOverride', (_e, id, ext, str) => ipcErrorWrapper(setOverride)(id, ext, str))
   ipcMain.handle('restartCore', ipcErrorWrapper(restartCore))
   ipcMain.handle('restartMihomoConnections', ipcErrorWrapper(restartMihomoConnections))
+  ipcMain.handle('startMihomoTraffic', ipcErrorWrapper(startMihomoTraffic))
+  ipcMain.handle('stopMihomoTraffic', ipcErrorWrapper(stopMihomoTraffic))
+  ipcMain.handle('startMihomoMemory', ipcErrorWrapper(startMihomoMemory))
+  ipcMain.handle('stopMihomoMemory', ipcErrorWrapper(stopMihomoMemory))
+  ipcMain.handle('startMihomoLogs', ipcErrorWrapper(startMihomoLogs))
+  ipcMain.handle('stopMihomoLogs', ipcErrorWrapper(stopMihomoLogs))
+  ipcMain.handle('startMihomoConnections', ipcErrorWrapper(startMihomoConnections))
+  ipcMain.handle('stopMihomoConnections', ipcErrorWrapper(stopMihomoConnections))
   ipcMain.handle('startMonitor', (_e, detached) => ipcErrorWrapper(startMonitor)(detached))
   ipcMain.handle('triggerSysProxy', (_e, enable, onlyActiveDevice) =>
     ipcErrorWrapper(triggerSysProxy)(enable, onlyActiveDevice)

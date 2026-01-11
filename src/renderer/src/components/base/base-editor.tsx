@@ -1,9 +1,4 @@
-import { useRef } from 'react'
-import * as monaco from 'monaco-editor'
-import MonacoEditor, { MonacoDiffEditor } from 'react-monaco-editor'
-import { configureMonacoYaml } from 'monaco-yaml'
-import metaSchema from 'meta-json-schema/schemas/meta-json-schema.json'
-import pac from 'types-pac/pac.d.ts?raw'
+import { useRef, useState, useEffect } from 'react'
 import { useTheme } from 'next-themes'
 import { nanoid } from 'nanoid'
 import React from 'react'
@@ -22,77 +17,94 @@ interface Props {
 // 跨编辑器实例共享的初始化标志
 const MONACO_INIT_FLAG = '__sparkle_monaco_initialized__'
 let initialized = false
-const monacoInitialization = (): void => {
+let monaco: typeof import('monaco-editor') | null = null
+let MonacoEditor: React.ComponentType<any> | null = null
+let MonacoDiffEditor: React.ComponentType<any> | null = null
+
+const monacoInitialization = async (): Promise<void> => {
   // 检查全局标志，避免重复初始化
   if (initialized || (globalThis as Record<string, unknown>)[MONACO_INIT_FLAG]) return
 
-  // configure yaml worker
-  configureMonacoYaml(monaco, {
-    validate: true,
-    enableSchemaRequest: true,
-    schemas: [
-      {
-        uri: 'http://example.com/meta-json-schema.json',
-        fileMatch: ['**/*.clash.yaml'],
-        // @ts-ignore // type JSONSchema7
-        schema: {
-          ...metaSchema,
-          patternProperties: {
-            '\\+rules': {
-              type: 'array',
-              $ref: '#/definitions/rules',
-              description: '"+"开头表示将内容插入到原数组前面'
-            },
-            'rules\\+': {
-              type: 'array',
-              $ref: '#/definitions/rules',
-              description: '"+"结尾表示将内容追加到原数组后面'
-            },
-            '\\+proxies': {
-              type: 'array',
-              $ref: '#/definitions/proxies',
-              description: '"+"开头表示将内容插入到原数组前面'
-            },
-            'proxies\\+': {
-              type: 'array',
-              $ref: '#/definitions/proxies',
-              description: '"+"结尾表示将内容追加到原数组后面'
-            },
-            '\\+proxy-groups': {
-              type: 'array',
-              $ref: '#/definitions/proxy-groups',
-              description: '"+"开头表示将内容插入到原数组前面'
-            },
-            'proxy-groups\\+': {
-              type: 'array',
-              $ref: '#/definitions/proxy-groups',
-              description: '"+"结尾表示将内容追加到原数组后面'
-            },
-            '^\\+': {
-              type: 'array',
-              description: '"+"开头表示将内容插入到原数组前面'
-            },
-            '\\+$': {
-              type: 'array',
-              description: '"+"结尾表示将内容追加到原数组后面'
-            },
-            '!$': {
-              type: 'object',
-              description: '"!"结尾表示强制覆盖该项而不进行递归合并'
+  // 动态导入 Monaco
+  if (!monaco) {
+    monaco = await import('monaco-editor')
+    const { default: ReactMonacoEditor } = await import('react-monaco-editor')
+    MonacoEditor = ReactMonacoEditor
+    MonacoDiffEditor = ReactMonacoEditor.MonacoDiffEditor
+    const { configureMonacoYaml } = await import('monaco-yaml')
+    const metaSchema = await import('meta-json-schema/schemas/meta-json-schema.json')
+    const pac = await import('types-pac/pac.d.ts?raw')
+
+    // configure yaml worker
+    configureMonacoYaml(monaco, {
+      validate: true,
+      enableSchemaRequest: true,
+      schemas: [
+        {
+          uri: 'http://example.com/meta-json-schema.json',
+          fileMatch: ['**/*.clash.yaml'],
+          // @ts-ignore // type JSONSchema7
+          schema: {
+            ...(metaSchema.default || metaSchema),
+            patternProperties: {
+              '\\+rules': {
+                type: 'array',
+                $ref: '#/definitions/rules',
+                description: '"+"开头表示将内容插入到原数组前面'
+              },
+              'rules\\+': {
+                type: 'array',
+                $ref: '#/definitions/rules',
+                description: '"+"结尾表示将内容追加到原数组后面'
+              },
+              '\\+proxies': {
+                type: 'array',
+                $ref: '#/definitions/proxies',
+                description: '"+"开头表示将内容插入到原数组前面'
+              },
+              'proxies\\+': {
+                type: 'array',
+                $ref: '#/definitions/proxies',
+                description: '"+"结尾表示将内容追加到原数组后面'
+              },
+              '\\+proxy-groups': {
+                type: 'array',
+                $ref: '#/definitions/proxy-groups',
+                description: '"+"开头表示将内容插入到原数组前面'
+              },
+              'proxy-groups\\+': {
+                type: 'array',
+                $ref: '#/definitions/proxy-groups',
+                description: '"+"结尾表示将内容追加到原数组后面'
+              },
+              '^\\+': {
+                type: 'array',
+                description: '"+"开头表示将内容插入到原数组前面'
+              },
+              '\\+$': {
+                type: 'array',
+                description: '"+"结尾表示将内容追加到原数组后面'
+              },
+              '!$': {
+                type: 'object',
+                description: '"!"结尾表示强制覆盖该项而不进行递归合并'
+              }
             }
           }
         }
-      }
-    ]
-  })
-  // configure PAC definition
-  monaco.languages.typescript.javascriptDefaults.addExtraLib(pac, 'pac.d.ts')
+      ]
+    })
+    // configure PAC definition
+    monaco.languages.typescript.javascriptDefaults.addExtraLib((pac as any).default || pac, 'pac.d.ts')
+  }
+
   initialized = true
   // 设置全局标志
   ;(globalThis as Record<string, unknown>)[MONACO_INIT_FLAG] = true
 }
 
 export const BaseEditor: React.FC<Props> = (props) => {
+  const [isLoaded, setIsLoaded] = useState(false)
   const { theme, systemTheme } = useTheme()
   const trueTheme = theme === 'system' ? systemTheme : theme
   const {
@@ -105,13 +117,31 @@ export const BaseEditor: React.FC<Props> = (props) => {
   } = props
   const { appConfig: { disableAnimation = false } = {} } = useAppConfig()
 
-  const editorRef = useRef<monaco.editor.IStandaloneCodeEditor>(undefined)
-  const diffEditorRef = useRef<monaco.editor.IStandaloneDiffEditor>(undefined)
+  // 异步初始化 Monaco
+  useEffect(() => {
+    let mounted = true
+
+    const initMonaco = async () => {
+      await monacoInitialization()
+      if (mounted) {
+        setIsLoaded(true)
+      }
+    }
+
+    initMonaco()
+
+    return () => {
+      mounted = false
+    }
+  }, [])
+
+  const editorRef = useRef<any>(undefined)
+  const diffEditorRef = useRef<any>(undefined)
 
   // 追踪 Model 实例
-  const modelRef = useRef<monaco.editor.ITextModel | null>(null)
-  const originalModelRef = useRef<monaco.editor.ITextModel | null>(null)
-  const modifiedModelRef = useRef<monaco.editor.ITextModel | null>(null)
+  const modelRef = useRef<any>(null)
+  const originalModelRef = useRef<any>(null)
+  const modifiedModelRef = useRef<any>(null)
 
   // 释放所有 Model 实例
   const disposeModels = (): void => {
@@ -123,11 +153,8 @@ export const BaseEditor: React.FC<Props> = (props) => {
     modifiedModelRef.current = null
   }
 
-  const editorWillMount = (): void => {
-    monacoInitialization()
-  }
-
-  const editorDidMount = (editor: monaco.editor.IStandaloneCodeEditor): void => {
+  const editorDidMount = (editor: any): void => {
+    if (!monaco) return
     editorRef.current = editor
 
     const uri = monaco.Uri.parse(`${nanoid()}.${language === 'yaml' ? 'clash' : ''}.${language}`)
@@ -135,7 +162,9 @@ export const BaseEditor: React.FC<Props> = (props) => {
     editorRef.current.setModel(model)
     modelRef.current = model // 追踪 model
   }
-  const diffEditorDidMount = (editor: monaco.editor.IStandaloneDiffEditor): void => {
+
+  const diffEditorDidMount = (editor: any): void => {
+    if (!monaco) return
     diffEditorRef.current = editor
 
     const originalUri = monaco.Uri.parse(
@@ -144,14 +173,24 @@ export const BaseEditor: React.FC<Props> = (props) => {
     const modifiedUri = monaco.Uri.parse(
       `modified-${nanoid()}.${language === 'yaml' ? 'clash' : ''}.${language}`
     )
-    const originalModel = monaco.editor.createModel(originalValue || '', language, originalUri)
+    const originalModel = monaco.editor.createModel(originalValue, language, originalUri)
     const modifiedModel = monaco.editor.createModel(value, language, modifiedUri)
+    editorRef.current.setModel(originalModel)
     diffEditorRef.current.setModel({
       original: originalModel,
       modified: modifiedModel
     })
-    originalModelRef.current = originalModel // 追踪 models
+    originalModelRef.current = originalModel
     modifiedModelRef.current = modifiedModel
+  }
+
+  // 显示加载态
+  if (!isLoaded || !MonacoEditor) {
+    return (
+      <div className="w-full h-full flex items-center justify-center bg-default-100 dark:bg-default-900">
+        <div className="text-foreground-500">Loading editor...</div>
+      </div>
+    )
   }
 
   const options = {
@@ -204,7 +243,6 @@ export const BaseEditor: React.FC<Props> = (props) => {
         height="100%"
         theme={trueTheme?.includes('light') ? 'vs' : 'vs-dark'}
         options={options}
-        editorWillMount={editorWillMount}
         editorDidMount={diffEditorDidMount}
         editorWillUnmount={disposeModels}
         onChange={onChange}
@@ -219,7 +257,6 @@ export const BaseEditor: React.FC<Props> = (props) => {
       height="100%"
       theme={trueTheme?.includes('light') ? 'vs' : 'vs-dark'}
       options={options}
-      editorWillMount={editorWillMount}
       editorDidMount={editorDidMount}
       editorWillUnmount={disposeModels}
       onChange={onChange}

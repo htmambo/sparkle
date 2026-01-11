@@ -150,6 +150,18 @@ jobs:
             ${{ runner.os }}-electron-${{ matrix.arch }}-
             ${{ runner.os }}-electron-
 
+      - name: Cache Prepared Files
+        uses: actions/cache@v4
+        with:
+          path: |
+            node_modules/.temp
+            extra/sidecar
+            extra/files
+          key: ${{ runner.os }}-prepared-${{ matrix.arch }}-${{ hashFiles('scripts/prepare.mjs') }}
+          restore-keys: |
+            ${{ runner.os }}-prepared-${{ matrix.arch }}-
+            ${{ runner.os }}-prepared-
+
       - name: Determine and Update Version
         shell: bash
         run: |

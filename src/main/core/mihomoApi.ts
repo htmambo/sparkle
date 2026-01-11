@@ -13,18 +13,25 @@ let mihomoTrafficWs: WebSocket | null = null
 let trafficRetry = 10
 let trafficRetryCount = 0
 let trafficStopped = false
+let trafficSubscriberCount = 0 // 引用计数
+
 let mihomoMemoryWs: WebSocket | null = null
 let memoryRetry = 10
 let memoryRetryCount = 0
 let memoryStopped = false
+let memorySubscriberCount = 0 // 引用计数
+
 let mihomoLogsWs: WebSocket | null = null
 let logsRetry = 10
 let logsRetryCount = 0
 let logsStopped = false
+let logsSubscriberCount = 0 // 引用计数
+
 let mihomoConnectionsWs: WebSocket | null = null
 let connectionsRetry = 10
 let connectionsRetryCount = 0
 let connectionsStopped = false
+let connectionsSubscriberCount = 0 // 引用计数
 
 // 指数退避算法，添加 jitter 随机化
 const getBackoffDelay = (retryCount: number): number => {
@@ -227,18 +234,27 @@ export const mihomoUpgradeUI = async (): Promise<void> => {
 }
 
 export const startMihomoTraffic = async (): Promise<void> => {
-  trafficStopped = false // 重置停止标志
-  await mihomoTraffic()
+  trafficSubscriberCount++
+  if (trafficSubscriberCount === 1) {
+    // 第一个订阅者，真正启动 WebSocket
+    trafficStopped = false
+    await mihomoTraffic()
+  }
 }
 
 export const stopMihomoTraffic = (): void => {
-  trafficStopped = true // 设置停止标志
-  if (mihomoTrafficWs) {
-    mihomoTrafficWs.removeAllListeners()
-    if (mihomoTrafficWs.readyState === WebSocket.OPEN) {
-      mihomoTrafficWs.close()
+  trafficSubscriberCount--
+  if (trafficSubscriberCount <= 0) {
+    // 没有订阅者了，停止 WebSocket
+    trafficSubscriberCount = 0
+    trafficStopped = true
+    if (mihomoTrafficWs) {
+      mihomoTrafficWs.removeAllListeners()
+      if (mihomoTrafficWs.readyState === WebSocket.OPEN) {
+        mihomoTrafficWs.close()
+      }
+      mihomoTrafficWs = null
     }
-    mihomoTrafficWs = null
   }
 }
 
@@ -286,18 +302,25 @@ const mihomoTraffic = async (): Promise<void> => {
 }
 
 export const startMihomoMemory = async (): Promise<void> => {
-  memoryStopped = false // 重置停止标志
-  await mihomoMemory()
+  memorySubscriberCount++
+  if (memorySubscriberCount === 1) {
+    memoryStopped = false
+    await mihomoMemory()
+  }
 }
 
 export const stopMihomoMemory = (): void => {
-  memoryStopped = true // 设置停止标志
-  if (mihomoMemoryWs) {
-    mihomoMemoryWs.removeAllListeners()
-    if (mihomoMemoryWs.readyState === WebSocket.OPEN) {
-      mihomoMemoryWs.close()
+  memorySubscriberCount--
+  if (memorySubscriberCount <= 0) {
+    memorySubscriberCount = 0
+    memoryStopped = true
+    if (mihomoMemoryWs) {
+      mihomoMemoryWs.removeAllListeners()
+      if (mihomoMemoryWs.readyState === WebSocket.OPEN) {
+        mihomoMemoryWs.close()
+      }
+      mihomoMemoryWs = null
     }
-    mihomoMemoryWs = null
   }
 }
 
@@ -335,18 +358,25 @@ const mihomoMemory = async (): Promise<void> => {
 }
 
 export const startMihomoLogs = async (): Promise<void> => {
-  logsStopped = false // 重置停止标志
-  await mihomoLogs()
+  logsSubscriberCount++
+  if (logsSubscriberCount === 1) {
+    logsStopped = false
+    await mihomoLogs()
+  }
 }
 
 export const stopMihomoLogs = (): void => {
-  logsStopped = true // 设置停止标志
-  if (mihomoLogsWs) {
-    mihomoLogsWs.removeAllListeners()
-    if (mihomoLogsWs.readyState === WebSocket.OPEN) {
-      mihomoLogsWs.close()
+  logsSubscriberCount--
+  if (logsSubscriberCount <= 0) {
+    logsSubscriberCount = 0
+    logsStopped = true
+    if (mihomoLogsWs) {
+      mihomoLogsWs.removeAllListeners()
+      if (mihomoLogsWs.readyState === WebSocket.OPEN) {
+        mihomoLogsWs.close()
+      }
+      mihomoLogsWs = null
     }
-    mihomoLogsWs = null
   }
 }
 
@@ -386,18 +416,25 @@ const mihomoLogs = async (): Promise<void> => {
 }
 
 export const startMihomoConnections = async (): Promise<void> => {
-  connectionsStopped = false // 重置停止标志
-  await mihomoConnections()
+  connectionsSubscriberCount++
+  if (connectionsSubscriberCount === 1) {
+    connectionsStopped = false
+    await mihomoConnections()
+  }
 }
 
 export const stopMihomoConnections = (): void => {
-  connectionsStopped = true // 设置停止标志
-  if (mihomoConnectionsWs) {
-    mihomoConnectionsWs.removeAllListeners()
-    if (mihomoConnectionsWs.readyState === WebSocket.OPEN) {
-      mihomoConnectionsWs.close()
+  connectionsSubscriberCount--
+  if (connectionsSubscriberCount <= 0) {
+    connectionsSubscriberCount = 0
+    connectionsStopped = true
+    if (mihomoConnectionsWs) {
+      mihomoConnectionsWs.removeAllListeners()
+      if (mihomoConnectionsWs.readyState === WebSocket.OPEN) {
+        mihomoConnectionsWs.close()
+      }
+      mihomoConnectionsWs = null
     }
-    mihomoConnectionsWs = null
   }
 }
 

@@ -1,5 +1,10 @@
 import BasePage from '@renderer/components/base/base-page'
-import { mihomoCloseAllConnections, mihomoCloseConnection } from '@renderer/utils/ipc'
+import {
+  mihomoCloseAllConnections,
+  mihomoCloseConnection,
+  startMihomoConnections,
+  stopMihomoConnections
+} from '@renderer/utils/ipc'
 import React, { Key, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Badge, Button, Divider, Input, Select, SelectItem, Tab, Tabs } from '@heroui/react'
 import { calcTraffic } from '@renderer/utils/calc'
@@ -149,6 +154,14 @@ const Connections: React.FC = () => {
     },
     [tab, trashClosedConnection]
   )
+
+  // WebSocket 订阅管理
+  useEffect(() => {
+    startMihomoConnections()
+    return () => {
+      stopMihomoConnections()
+    }
+  }, [])
 
   useEffect(() => {
     const handleConnections = (_e: unknown, info: ControllerConnections): void => {

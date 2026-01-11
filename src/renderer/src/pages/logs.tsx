@@ -1,6 +1,7 @@
 import BasePage from '@renderer/components/base/base-page'
 import LogItem from '@renderer/components/logs/log-item'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { startMihomoLogs, stopMihomoLogs } from '@renderer/utils/ipc'
 import { Button, Divider, Input } from '@heroui/react'
 import { Virtuoso, VirtuosoHandle } from 'react-virtuoso'
 import { IoLocationSharp } from 'react-icons/io5'
@@ -49,19 +50,6 @@ const flushLogs = (): void => {
   }
 }
 
-// 模块顶层监听器，使用 buffer 批量更新
-window.electron.ipcRenderer.on('mihomoLogs', (_e, log: ControllerLog) => {
-  logBuffer.push(log)
-
-  // 节流：每 100ms 批量更新一次
-  if (logFlushTimer === null) {
-    logFlushTimer = setTimeout(() => {
-      flushLogs()
-      logFlushTimer = null
-    }, 100)
-  }
-})
-
 const Logs: React.FC = () => {
   const [logs, setLogs] = useState<ControllerLog[]>(cachedLogs.log)
   const [filter, setFilter] = useState('')
@@ -74,6 +62,30 @@ const Logs: React.FC = () => {
       return includesIgnoreCase(log.payload, filter) || includesIgnoreCase(log.type, filter)
     })
   }, [logs, filter])
+
+  // WebSocket 订阅管理
+  useEffect(() => {
+    startMihomoLogs()
+
+    const handleLogs = (_e: unknown, log: ControllerLog): void => {
+      logBuffer.push(log)
+
+      // 节流：每 100ms 批量更新一次
+      if (logFlushTimer === null) {
+        logFlushTimer = setTimeout(() => {
+          flushLogs()
+          logFlushTimer = null
+        }, 100)
+      }
+    }
+
+    window.electron.ipcRenderer.on('mihomoLogs', handleLogs)
+
+    return () => {
+      window.electron.ipcRenderer.removeListener('mihomoLogs', handleLogs)
+      stopMihomoLogs()
+    }
+  }, [])
 
   useEffect(() => {
     if (!trace) return
