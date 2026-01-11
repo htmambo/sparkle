@@ -1,6 +1,6 @@
 name: Build
 permissions: write-all
-on:
+'on':
   workflow_dispatch:
     inputs:
       platform:
@@ -38,7 +38,14 @@ jobs:
       - name: Set Matrix
         id: set-matrix
         run: |
+          # 确定平台选择
           PLATFORM="${{ github.event.inputs.platform }}"
+
+          # 如果是 push 或 tag 触发，默认构建全部平台
+          if [ -z "$PLATFORM" ]; then
+            PLATFORM="全部平台"
+          fi
+
           case "$PLATFORM" in
             "全部平台")
               MATRIX='[
@@ -132,7 +139,13 @@ jobs:
               MATRIX='[]'
               ;;
           esac
-          echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
+
+          # 使用 heredoc 方式输出，避免多行 JSON 破坏 GITHUB_OUTPUT 格式
+          {
+            echo 'matrix<<EOF'
+            echo "$MATRIX"
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
 
   build:
     needs: set-matrix
@@ -253,6 +266,7 @@ jobs:
             changelog.md
 
   pre-release:
+    if: github.event_name == 'workflow_dispatch'
     needs: [set-matrix, build]
     runs-on: ubuntu-latest
     steps:
@@ -306,6 +320,13 @@ jobs:
           fetch-depth: '0'
           fetch-tags: 'true'
 
+      - name: Extract Tag Name
+        id: tag
+        run: |
+          # 从 github.ref (refs/tags/v1.2.3) 提取 tag 名称 (v1.2.3)
+          TAG_NAME="${GITHUB_REF#refs/tags/}"
+          echo "tag=$TAG_NAME" >> $GITHUB_OUTPUT
+
       - name: Create Changelog
         run: |
           RELEASE_NOTES="${{ github.event.inputs.release_notes }}"
@@ -326,14 +347,14 @@ jobs:
         uses: 8Mi-Tech/delete-release-assets-action@main
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          tag: ${{ github.ref }}
+          tag: ${{ steps.tag.outputs.tag }}
           deleteOnlyFromDrafts: false
 
       - name: Publish Release
         if: success()
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref }}
+          tag_name: ${{ steps.tag.outputs.tag }}
           body_path: changelog.md
           files: |
             latest.yml
