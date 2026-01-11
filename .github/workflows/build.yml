@@ -30,13 +30,6 @@ on:
       - '.github/workflows/issues.yml'
 
 jobs:
-  build:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        include: ${{ fromJson(needs.set-matrix.outputs.matrix) }}
-    name: Build ${{ matrix.os }}-${{ matrix.arch }}${{ matrix.format && '-' || '' }}${{ matrix.format || '' }}
-
   set-matrix:
     runs-on: ubuntu-latest
     outputs:
