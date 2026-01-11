@@ -1,15 +1,85 @@
-### Breaking Changes
+fix: 安全加固、性能优化和代码质量改进
+本次提交包含全面的安全加固、性能优化和代码质量改进，涵盖 10 个文件的修改。
 
-- 1.5.0 之后 macOS 改用 pkg 安装方式，不再支持 dmg 安装方式，因此本次更新需要手动下载安装包进行安装
-- electron33 已不再支持 macOS 10.15，故为 10.15 提供单独的安装包，需要的用户请自行下载安装，应用内更新时会自动检测系统版本，安装后后续可正常在应用内直接更新
-- 1.5.1 之后 Windows 下 `productName` 改为 `Mihomo Party`, 更新后若出现找不到文件报错，手动以管理员权限运行 `Mihomo Party.exe` 即可
-- 由于更改了应用名称，开机启动失效是正常现象，在设置中重新开关一下即可
+## 安全加固
 
-### Features
+### 1. Renderer 进程沙箱硬化
+- 所有 BrowserWindow 实例强制启用安全选项
+  - contextIsolation: true
+  - nodeIntegration: false
+  - sandbox: true
+  - webSecurity: true
+- 影响文件：src/main/index.ts, floatingWindow.ts, tray.ts
 
-- 添加出站接口查看
-- 添加更多嗅探配置
+### 2. VM 沙箱逃逸防护
+- 禁用 require、process、global 等危险全局对象
+- 使用 vm.Script 替代 vm.runInContext，实现更严格的控制
+- 添加��时机制：初始化 1 秒，执行 3 秒
+- 禁用动态代码生成：codeGeneration: { strings: false, wasm: false }
+- 冻结危险对象：Buffer、yaml
+- 影响文件：src/main/core/factory.ts
 
-### Bug Fixes
+### 3. SSRF 防护（深度链接导入）
+- 添加 ensureSafeRemote() 函数验证远程 URL
+- 仅允许 HTTPS 协议
+- 阻止访问本地和内网地址
+  - 127.0.0.0/8
+  - 192.168.0.0/16
+  - 10.0.0.0/8
+  - 172.16.0.0/12 (完整覆盖 172.16-172.31)
+  - *.local 域名
+- 应用于订阅导入和覆写导入
+- 影响文件：src/main/index.ts
 
-- null
+### 4. 凭证加密存储
+- 扩展加密字段：githubToken、webdavPassword
+- 保持向后兼容：读取时保留明文，写入时加密
+- 影响文件：src/main/config/app.ts
+
+### 5. Preload 脚本安全
+- 移除 contextIsolation 关闭时的不安全回退
+- 避免暴露全局对象
+- 影响文件：src/preload/index.ts
+
+## 性能优化
+
+### 1. Monaco Editor 内存泄漏修复
+- 添加全局初始化标志，防止重复配置
+- 使用 useRef 跟踪 Model 实例
+- 在组件卸载时正确释放 Model 资源
+- 影响文件：src/renderer/src/components/base/base-editor.tsx
+
+### 2. WebSocket 自动重连控制
+- 为所有 WebSocket 连接添加停止标志
+  - trafficStopped
+  - memoryStopped
+  - logsStopped
+  - connectionsStopped
+- 明确停止后不再自动重连
+- 影响文件：src/main/core/mihomoApi.ts
+
+## 代码质量
+
+### 1. JSDoc 文档完善
+- 为 registerIpcMainHandlers 添加详细注释
+- 包含功能描述、使用示例、参考链接
+- 影响文件：src/main/utils/ipc.ts
+
+## 构建工具
+
+### 1. macOS 本地打包脚本
+- 创建 scripts/build-mac-local.sh
+- 支持 Intel (x86_64) 架构
+- 环境检查：Node.js、pnpm、git、jq
+- 版本管理：自动版本或手动指定
+- 完整的构建流程：清理、安装、构建、生成更新配置
+- 彩色日志输出和详细进度反馈
+
+## 文档
+
+- 创建改进计划文档：docs/Task/SPARKLE_IMPROVEMENT_PLAN.md
+- 包含详细的修复方案、风险评估、测试计划
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
+Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>

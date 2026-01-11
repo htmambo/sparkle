@@ -4,6 +4,11 @@
 # Sparkle macOS 本地打包脚本 (Intel x64)
 # 用途：在本地 macOS 环境中构建 Sparkle 应用
 # 平台：macOS Intel (x64)
+#
+# ���意事项：
+#   - 脚本会自动使用 npmmirror.com 的 Electron 镜像源加速下载
+#   - 如遇到网络问题，可手动设置代理：export https_proxy=http://127.0.0.1:7890
+#   - 如需切换镜像源，修改 ELECTRON_MIRROR 环境变量
 ################################################################################
 
 set -e  # 遇到错误立即退出
@@ -121,9 +126,47 @@ clean_build() {
     log_success "清理完成"
 }
 
+# 检查并下载 Electron
+check_electron() {
+    local VERSION="37.10.3"
+    local ELECTRON_DIR="$HOME/.electron"
+    local CACHE_FILE="$ELECTRON_DIR/electron-v${VERSION}-darwin-x64.zip"
+    local MIRROR_URL="https://npmmirror.com/mirrors/electron/v${VERSION}/electron-v${VERSION}-darwin-x64.zip"
+
+    log_info "检查 Electron 缓存..."
+
+    if [ -f "$CACHE_FILE" ]; then
+        local FILE_SIZE=$(du -h "$CACHE_FILE" | cut -f1)
+        log_success "Electron 缓存已存在 ($FILE_SIZE)"
+        return 0
+    fi
+
+    log_warning "Electron 缓存不存在，开始下载..."
+
+    # 创建缓存目录
+    mkdir -p "$ELECTRON_DIR"
+
+    # 下载 Electron
+    log_info "从镜像源下载: $MIRROR_URL"
+    if curl -L -o "$CACHE_FILE" "$MIRROR_URL"; then
+        local FILE_SIZE=$(du -h "$CACHE_FILE" | cut -f1)
+        log_success "Electron 下载成功 ($FILE_SIZE)"
+    else
+        log_error "Electron 下载失败"
+        rm -f "$CACHE_FILE"
+        return 1
+    fi
+}
+
 # 安装依赖
 install_dependencies() {
     log_info "安装项目依赖..."
+
+    # 设置 Electron 镜像源（解决网络问题）
+    export ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/
+    export ELECTRON_CACHE_DIR="$HOME/.electron"
+
+    log_info "使用 Electron 镜像: $ELECTRON_MIRROR"
 
     SKIP_PREPARE=1 pnpm install
     pnpm prepare --x64
@@ -138,6 +181,10 @@ build_app() {
     # 设置环境变量
     export npm_config_arch=x64
     export npm_config_target_arch=x64
+
+    # 设置 Electron 镜像源（解决网络问题）
+    export ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/
+    export ELECTRON_CACHE_DIR="$HOME/.electron"
 
     # 构建
     pnpm build:mac --x64
@@ -239,6 +286,7 @@ main() {
     check_environment
     process_version "$VERSION"
     clean_build
+    check_electron
     install_dependencies
     build_app
     generate_changelog
