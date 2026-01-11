@@ -159,8 +159,28 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup pnpm
-        run: npm install -g pnpm
+      - name: Setup Node.js and pnpm
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Setup pnpm version
+        run: |
+          corepack enable
+          corepack prepare pnpm@10.15.0 --activate
+
+      - name: Cache Electron
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.electron
+            ~/.cache/electron
+            ~/Library/Caches/electron
+          key: ${{ runner.os }}-electron-${{ matrix.arch }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-electron-${{ matrix.arch }}-
+            ${{ runner.os }}-electron-
 
       - name: Determine and Update Version
         shell: bash
@@ -333,8 +353,18 @@ jobs:
           echo "${RELEASE_NOTES:-更新}" > changelog.md
 
       - name: Install Dependencies and Updater
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Setup pnpm version
         run: |
-          npm install -g pnpm
+          corepack enable
+          corepack prepare pnpm@10.15.0 --activate
+
+      - name: Updater
+        run: |
           SKIP_PREPARE=1 pnpm install
           pnpm updater
 

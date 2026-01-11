@@ -10,23 +10,33 @@ interface GroupsContextType {
 const GroupsContext = createContext<GroupsContextType | undefined>(undefined)
 
 export const GroupsProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  const [coreStarted, setCoreStarted] = React.useState(false)
   const { data: groups, mutate } = useSWR<ControllerMixedGroup[]>('mihomoGroups', mihomoGroups, {
-    errorRetryInterval: 200,
-    errorRetryCount: 10
+    // core 启动前禁用重试，避免密集 IPC 调用
+    revalidateOnFocus: coreStarted,
+    revalidateOnReconnect: coreStarted,
+    errorRetryCount: coreStarted ? 10 : 0,
+    errorRetryInterval: coreStarted ? 200 : 0
   })
 
   React.useEffect(() => {
-    window.electron.ipcRenderer.on('groupsUpdated', () => {
+    const handleGroupsUpdated = (): void => {
       mutate()
-    })
-    window.electron.ipcRenderer.on('core-started', () => {
-      mutate()
-    })
-    return (): void => {
-      window.electron.ipcRenderer.removeAllListeners('groupsUpdated')
-      window.electron.ipcRenderer.removeAllListeners('core-started')
     }
-  }, [])
+
+    const handleCoreStarted = (): void => {
+      setCoreStarted(true)
+      mutate()
+    }
+
+    window.electron.ipcRenderer.on('groupsUpdated', handleGroupsUpdated)
+    window.electron.ipcRenderer.on('core-started', handleCoreStarted)
+
+    return (): void => {
+      window.electron.ipcRenderer.removeListener('groupsUpdated', handleGroupsUpdated)
+      window.electron.ipcRenderer.removeListener('core-started', handleCoreStarted)
+    }
+  }, [mutate])
 
   return <GroupsContext.Provider value={{ groups, mutate }}>{children}</GroupsContext.Provider>
 }
