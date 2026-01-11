@@ -272,13 +272,78 @@
    - pnpm 版本不一致 → 添加 corepack 步骤
    - Windows 缓存路径 → 移除不兼容路径
 
-### 下一步
+---
 
-Phase 2（中期优化）待实施：
-- 任务 2.1：CI 矩阵收敛
-- 任务 2.2：Logs 页优化
-- 任务 2.3：Connections 页优化
-- 任务 2.4：WS 重连退避
+## Phase 2 完成记录
+
+**完成时间**：2026-01-11
+**Git Commits**：5cbfe73, ac9c37a
+
+### 已完成任务
+
+✅ **任务 2.1：CI 矩阵收敛**
+- 去除 `format` 独立维度，从 15 个 jobs 降到 7 个（减少 53%）
+- 在同一 job 中构建多个 targets（Windows: nsis+7z, Linux: deb+rpm+pacman）
+- 调整所有依赖步骤的条件，去除 `matrix.format` 引用
+- 验收：Job 数量从 15 降到 7
+
+✅ **任务 2.2：Logs 页优化**
+- 添加 100ms 节流机制，批量更新日志
+- 使用 buffer 缓存日志，定期 flush 到 UI
+- 每条日志不再立即触发 UI 更新
+- 验收：后台 CPU 占用降低
+
+✅ **任务 2.3：Connections 页优化**
+- 修复 IPC 监听器反复重建（从 4 个依赖减少到 1 个）
+- 使用 `Map` 替代 `find()`，O(n²) → O(n)
+- 使用 `removeListener` 替代 `removeAllListeners`
+- 验收：渲染性能提升
+
+✅ **任务 2.4：WS 重连退避**
+- 实现指数退避：1s, 2s, 4s, 8s, 16s, 最大 30s
+- 添加 jitter 随机化：±20% 避免惊群效应
+- 为 4 个 WebSocket 添加重连计数跟踪
+- 验收：服务不可用时更稳定
+
+### 技术亮点
+
+**CI 矩阵收敛**：
+- electron-builder.yml 已配置所有 targets
+- 运行 `electron-builder --win` 自动构建 nsis 和 7z
+
+**Logs 节流机制**：
+```typescript
+const logBuffer: ControllerLog[] = []
+let logFlushTimer: ReturnType<typeof setTimeout> | null = null
+
+window.electron.ipcRenderer.on('mihomoLogs', (_e, log: ControllerLog) => {
+  logBuffer.push(log)
+  if (logFlushTimer === null) {
+    logFlushTimer = setTimeout(() => {
+      flushLogs()
+      logFlushTimer = null
+    }, 100)
+  }
+})
+```
+
+**Connections Map 优化**：
+```typescript
+const activeConnsMap = new Map(activeConns.map((conn) => [conn.id, conn]))
+const allConns = allConnections.map((conn) => {
+  const activeConn = activeConnsMap.get(conn.id) // O(1) 查找
+  return activeConn || { ...conn, isActive: false }
+})
+```
+
+**WS 指数退避**：
+```typescript
+const getBackoffDelay = (retryCount: number): number => {
+  const baseDelay = Math.min(1000 * Math.pow(2, retryCount), 30000)
+  const jitter = baseDelay * 0.2 * (Math.random() * 2 - 1)
+  return Math.max(baseDelay + jitter, 1000)
+}
+```
 
 ---
 
@@ -292,4 +357,11 @@ Phase 2（中期优化）待实施：
 
 所有任务完成后，Sparkle 将在性能和用户体验上有显著提升。
 
-**当前进度**：Phase 1 已完成 ✅（3/9 任务完成）
+**当前进度**：Phase 1-2 已完成 ✅（7/9 任务完成，78%）
+
+### 下一步
+
+Phase 3（深度优化，4-8 周）待实施：
+- 任务 3.1：WebSocket 按需开启（预期后台资源占用降低 50%）
+- 任务 3.2：Monaco 懒加载（预期内存占用降低）
+- 任务 3.3：CI prepare 缓存（预期节省 2-5 分钟）
